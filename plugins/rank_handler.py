@@ -3,7 +3,7 @@ import requests
 import csv
 import io
     
-def register_handlers(bot, rank_collection, quiz_collection):
+def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("rank_"))
     def show_rank(call):
         chat_id = call.message.chat.id
