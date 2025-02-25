@@ -23,6 +23,7 @@ def extract_form_title(form_url):
 # ✅ Register Quiz Command
 @bot.message_handler(commands=['form_quiz'])
 def register_quiz(message):
+    print("✅ form_quiz command received!")
     chat_id = message.chat.id
     bot.send_message(chat_id, "📌 Send the Google Form link:")
     bot.register_next_step_handler(message, get_form_link, chat_id)
