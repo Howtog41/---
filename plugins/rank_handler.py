@@ -1,5 +1,5 @@
 from telebot.types import CallbackQuery
-from db import rank_collection
+from db import rank_collection, quiz_collection
 from main import bot  # Import bot instance
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("rank_"))
