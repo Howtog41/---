@@ -14,7 +14,8 @@ def load_plugins():
             print(f"🔄 Loading {module_name}")
             importlib.import_module(module_name)
 
-load_plugins()
 
-print("Bot started successfully!")
-bot.polling(none_stop=True)
+if __name__ == "__main__":  # ✅ Avoid duplicate execution
+    load_plugins()
+    print("🚀 Bot started successfully!")
+    bot.polling(none_stop=True)
