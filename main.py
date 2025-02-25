@@ -1,12 +1,12 @@
 import telebot
 import os
 from dotenv import load_dotenv
+from config import BOT_TOKEN
 
 # Load environment variables
 load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN")
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 
 # Load plugins dynamically
 def load_plugins():
