@@ -1,59 +1,56 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def register_handlers(bot, quiz_collection, rank_collection):
-    def get_pagination_buttons(page, total_pages):
-        buttons = []
-        if total_pages <= 5:
-            pages = list(range(1, total_pages + 1))
-        else:
-            if page <= 3:
-                pages = [1, 2, 3, '...', total_pages]
-            elif page >= total_pages - 2:
-                pages = [1, '...', total_pages - 2, total_pages - 1, total_pages]
-            else:
-                pages = [1, '...', page - 1, page, page + 1, '...', total_pages]
-        
-        for p in pages:
-            if p == '...':
-                buttons.append(InlineKeyboardButton("...", callback_data="ignore"))
-            else:
-                buttons.append(InlineKeyboardButton(str(p), callback_data=f"quizzes_page_{p}"))
-        
-        return buttons
-    
     @bot.message_handler(commands=['view_quizzes'])
-    def view_quizzes(message, page=1, edit=False, call=None):
-        chat_id = message.chat.id if not call else call.message.chat.id
+    def view_quizzes(message, page=1):
+        chat_id = message.chat.id
         quizzes_per_page = 10
         skip_count = (page - 1) * quizzes_per_page
         
+        # Fetch quizzes from MongoDB
         quizzes = list(quiz_collection.find().skip(skip_count).limit(quizzes_per_page))
         total_quizzes = quiz_collection.count_documents({})
-        total_pages = -(-total_quizzes // quizzes_per_page)
         
         if not quizzes:
             bot.send_message(chat_id, "❌ No quizzes found!")
             return
         
-        markup = InlineKeyboardMarkup()
-        for quiz in quizzes:
+        text = "<b>Your Quizzes</b>\n\n"
+        for i, quiz in enumerate(quizzes, start=skip_count + 1):
             quiz_id = quiz.get("quiz_id", "N/A")
             quiz_title = quiz.get("title", "Untitled Quiz")
-            markup.add(InlineKeyboardButton(f"📋 {quiz_title}", callback_data=f"quiz_details_{quiz_id}"))
+            creator = quiz.get("creator", "@SecondCoaching")
+            participants = quiz.get("participants", 0)
+            text += f"{i}. {quiz_title} by {creator}   {participants} people answered\n\n/view_{quiz_id}\n\n"
+        
+        # Pagination Buttons
+        markup = InlineKeyboardMarkup()
+        buttons = []
+        total_pages = (total_quizzes + quizzes_per_page - 1) // quizzes_per_page
         
         if total_pages > 1:
-            pagination_buttons = get_pagination_buttons(page, total_pages)
-            markup.add(*pagination_buttons)
+            visible_pages = [1, 2, 3] if page < 4 else [page - 1, page, page + 1]
+            if page > 4:
+                visible_pages.insert(0, "...")
+            if page < total_pages - 2:
+                visible_pages.append("...")
+            visible_pages.extend([total_pages - 1, total_pages])
         
-        if edit:
-            bot.edit_message_text("📚 <b>Available Quizzes:</b>", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
-        else:
-            bot.send_message(chat_id, "📚 <b>Available Quizzes:</b>", reply_markup=markup, parse_mode="HTML")
+            for p in visible_pages:
+                if p == "...":
+                    buttons.append(InlineKeyboardButton("...", callback_data="ignore"))
+                else:
+                    buttons.append(InlineKeyboardButton(str(p), callback_data=f"quizzes_page_{p}"))
+            
+            markup.add(*buttons)
+        
+        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
     
     @bot.callback_query_handler(func=lambda call: call.data.startswith("quizzes_page_"))
     def paginate_quizzes(call):
         page = int(call.data.split("_")[2])
-        view_quizzes(call.message, page=page, edit=True, call=call)
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                              text=view_quizzes(call.message, page), parse_mode="HTML")
     
     @bot.callback_query_handler(func=lambda call: call.data.startswith("quiz_details_"))
     def quiz_details(call):
@@ -74,4 +71,5 @@ def register_handlers(bot, quiz_collection, rank_collection):
         markup.add(InlineKeyboardButton("🗑️ Delete Quiz", callback_data=f"delete_quiz_{quiz_id}"))
         markup.add(InlineKeyboardButton("📊 Leaderboard", callback_data=f"leaderboard_{quiz_id}"))
         
-        bot.edit_message_text(f"📌 <b>{quiz_title}</b>\n📝 {quiz_desc}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                              text=f"📌 <b>{quiz_title}</b>\n📝 {quiz_desc}", reply_markup=markup, parse_mode="HTML")
