@@ -11,6 +11,7 @@ def load_plugins():
     for filename in os.listdir(plugin_path):
         if filename.endswith(".py") and filename != "__init__.py":
             module_name = f"{plugin_path}.{filename[:-3]}"
+            print(f"🔄 Loading {module_name}")
             importlib.import_module(module_name)
 
 load_plugins()
