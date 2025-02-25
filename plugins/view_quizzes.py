@@ -75,3 +75,19 @@ def register_handlers(bot, quiz_collection, rank_collection):
         markup.add(InlineKeyboardButton("📊 Leaderboard", callback_data=f"leaderboard_{quiz_id}"))
         
         bot.edit_message_text(f"📌 <b>{quiz_title}</b>\n📝 {quiz_desc}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_"))
+    def edit_quiz(call):
+        quiz_id = call.data.replace("edit_", "")
+        bot.send_message(call.message.chat.id, f"📝 Editing quiz {quiz_id}... (Functionality to be added)")
+    
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
+    def delete_quiz(call):
+        quiz_id = call.data.replace("delete_", "")
+        quiz_collection.delete_one({"quiz_id": quiz_id})
+        bot.answer_callback_query(call.id, "✅ Quiz deleted successfully!", show_alert=True)
+    
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
+    def quiz_leaderboard(call):
+        quiz_id = call.data.replace("leaderboard_", "")
+        bot.send_message(call.message.chat.id, f"📊 Fetching leaderboard for quiz {quiz_id}... (Functionality to be added)")
+
