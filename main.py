@@ -14,8 +14,11 @@ def load_plugins():
     for filename in os.listdir(plugins_dir):
         if filename.endswith(".py") and filename != "__init__.py":
             module_name = f"plugins.{filename[:-3]}"
-            __import__(module_name)
-
+            try:
+                importlib.import_module(module_name)
+                print(f"✅ Successfully loaded: {filename}")
+            except Exception as e:
+                print(f"❌ Error loading {filename}: {e}")
 load_plugins()
 
 # Start the bot
