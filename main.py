@@ -13,7 +13,7 @@ def load_plugins():
     plugins_dir = "plugins"
     for filename in os.listdir(plugins_dir):
         if filename.endswith(".py") and filename != "__init__.py":
-            module_name = f"plugins.{filename[:-3]}")
+            module_name = f"plugins.{filename[:-3]}"
             __import__(module_name)
 
 load_plugins()
