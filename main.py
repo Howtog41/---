@@ -1,21 +1,19 @@
 import telebot
-import importlib
 import os
 from config import BOT_TOKEN
+from importlib import import_module
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ✅ Auto-load all plugins from the 'plugins' folder
 def load_plugins():
-    plugin_path = "plugins"
-    for filename in os.listdir(plugin_path):
+    
+    for filename in os.listdir("plugins"):
         if filename.endswith(".py") and filename != "__init__.py":
-            module_name = f"{plugin_path}.{filename[:-3]}"
-            print(f"🔄 Loading {module_name}")
-            importlib.import_module(module_name)
+            import_module(f"plugins.{filename[:-3]}")
 
 
 if __name__ == "__main__":  # ✅ Avoid duplicate execution
     load_plugins()
     print("🚀 Bot started successfully!")
-    bot.polling(none_stop=True)
+    bot.infinity_polling()
