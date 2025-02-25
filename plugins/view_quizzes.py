@@ -1,6 +1,6 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-def register_handlers(bot, quiz_collection):
+def register_handlers(bot, quiz_collection, rank_collection):
     @bot.message_handler(commands=['view_quizzes'])
     def view_quizzes(message, page=1):
         chat_id = message.chat.id
