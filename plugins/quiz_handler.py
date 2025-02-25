@@ -2,7 +2,7 @@ import random
 import re
 import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from db import quiz_collection
+from db import quiz_collection, rank_collection
 from main import bot  # Import bot instance
 print("✅ quiz_handler.py loaded!") 
 # 🔍 Extract Google Sheet ID
