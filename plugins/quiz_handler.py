@@ -2,6 +2,7 @@ import telebot
 import random
 import re
 import requests
+import importlib
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from db import quiz_collection, rank_collection
 from main import bot  # Import bot instance
