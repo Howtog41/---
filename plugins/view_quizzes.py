@@ -83,9 +83,19 @@ def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
     def delete_quiz(call):
         quiz_id = call.data.replace("delete_", "")
-        quiz_collection.delete_one({"quiz_id": quiz_id})
-        bot.answer_callback_query(call.id, "✅ Quiz deleted successfully!", show_alert=True)
-    
+        print(f"Trying to delete quiz with ID: {quiz_id}")
+
+        quiz = quiz_collection.find_one({"quiz_id": quiz_id})  # ✅ Check if quiz exists
+        if not quiz:
+            bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
+            return
+
+        result = quiz_collection.delete_one({"quiz_id": quiz_id})
+
+        if result.deleted_count > 0:
+            bot.answer_callback_query(call.id, "✅ Quiz deleted successfully!", show_alert=True)
+        else:
+            bot.answer_callback_query(call.id, "❌ Failed to delete quiz!", show_alert=True)
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
     def quiz_leaderboard(call):
         quiz_id = call.data.replace("leaderboard_", "")
