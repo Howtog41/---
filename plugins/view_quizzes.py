@@ -83,7 +83,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
     
     @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
     def delete_quiz(call):
-         quiz_id = call.data.replace("delete_", "").strip()  # Extra spaces remove karo
+        quiz_id = call.data.replace("delete_", "").strip()  # Extra spaces remove karo
 
         print(f"🔍 Trying to delete quiz with ID: {quiz_id}")
 
