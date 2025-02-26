@@ -1,4 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from bson import ObjectId
 
 def register_handlers(bot, quiz_collection, rank_collection):
     def get_pagination_buttons(page, total_pages):
@@ -83,19 +84,24 @@ def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
     def delete_quiz(call):
         quiz_id = call.data.replace("delete_", "")
-        print(f"Trying to delete quiz with ID: {quiz_id}")
+        try:
+            # ✅ Try deleting using both `quiz_id` and `_id`
+            result = quiz_collection.delete_one({"quiz_id": quiz_id})
 
-        quiz = quiz_collection.find_one({"quiz_id": quiz_id})  # ✅ Check if quiz exists
-        if not quiz:
-            bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
-            return
+            if result.deleted_count == 0:
+                # ✅ Try deleting by `_id`
+                result = quiz_collection.delete_one({"_id": ObjectId(quiz_id)})
 
-        result = quiz_collection.delete_one({"quiz_id": quiz_id})
+            if result.deleted_count > 0:
+                bot.answer_callback_query(call.id, "✅ Quiz deleted successfully!", show_alert=True)
+            else:
+                bot.answer_callback_query(call.id, "❌ Failed to delete quiz!", show_alert=True)
 
-        if result.deleted_count > 0:
-            bot.answer_callback_query(call.id, "✅ Quiz deleted successfully!", show_alert=True)
-        else:
-            bot.answer_callback_query(call.id, "❌ Failed to delete quiz!", show_alert=True)
+        except Exception as e:
+            bot.answer_callback_query(call.id, f"❌ Error: {e}", show_alert=True)
+
+
+    
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
     def quiz_leaderboard(call):
         quiz_id = call.data.replace("leaderboard_", "")
