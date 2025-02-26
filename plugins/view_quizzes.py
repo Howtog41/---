@@ -86,7 +86,8 @@ def register_handlers(bot, quiz_collection, rank_collection):
         quiz_id = call.data.replace("delete_", "").strip()  # Extra spaces remove karo
 
         print(f"🔍 Trying to delete quiz with ID: {quiz_id}")
-
+        quiz = quiz_collection.find_one({"quiz_id": quiz_id})
+        print(type(quiz["quiz_id"]))
         result = quiz_collection.delete_one({"quiz_id": quiz_id})  # ✅ Directly delete
 
         if result.deleted_count > 0:
