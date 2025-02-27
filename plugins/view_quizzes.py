@@ -68,7 +68,10 @@ def register_handlers(bot, quiz_collection, rank_collection):
         
         quiz_title = quiz.get("title", "Untitled Quiz")
         quiz_desc = quiz.get("description", "No description available.")
+       
+        
         # Generate Shareable Quiz Link
+        bot_username = bot.get_me().username
         shareable_link = f"https://t.me/{bot.get_me().username}?start=quiz_{quiz_id}"
 
         markup = InlineKeyboardMarkup()
@@ -76,7 +79,13 @@ def register_handlers(bot, quiz_collection, rank_collection):
         markup.add(InlineKeyboardButton("📤 Share Quiz", url=shareable_link))
         markup.add(InlineKeyboardButton("🗑️ Delete Quiz", callback_data=f"delete_quiz_{quiz_id}"))
         markup.add(InlineKeyboardButton("📊 Leaderboard", callback_data=f"leaderboard_{quiz_id}"))
-        
+        # Message with Shareable Link
+        quiz_text = f"""
+    📌 <b>{quiz_title}</b>
+    📝 {quiz_desc}
+
+    🔗 <b>Shareable Link:</b> <code>{shareable_link}</code>
+    """
         bot.edit_message_text(f"📌 <b>{quiz_title}</b>\n📝 {quiz_desc}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
     @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_"))
     def edit_quiz(call):
