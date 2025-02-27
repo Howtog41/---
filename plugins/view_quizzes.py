@@ -68,10 +68,12 @@ def register_handlers(bot, quiz_collection, rank_collection):
         
         quiz_title = quiz.get("title", "Untitled Quiz")
         quiz_desc = quiz.get("description", "No description available.")
-        
+        # Generate Shareable Quiz Link
+        shareable_link = f"https://t.me/{bot.get_me().username}?start=quiz_{quiz_id}"
+
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("✏️ Edit Quiz", callback_data=f"edit_quiz_{quiz_id}"))
-        markup.add(InlineKeyboardButton("📤 Share Quiz", switch_inline_query=quiz_id))
+        markup.add(InlineKeyboardButton("📤 Share Quiz", url=shareable_link))
         markup.add(InlineKeyboardButton("🗑️ Delete Quiz", callback_data=f"delete_quiz_{quiz_id}"))
         markup.add(InlineKeyboardButton("📊 Leaderboard", callback_data=f"leaderboard_{quiz_id}"))
         
