@@ -1,65 +1,22 @@
-from telegram.ext import Application, MessageHandler, filters, CommandHandler
-import asyncio
+from telegram.ext import Application, MessageHandler, filters
 
 TOKEN = "8151017957:AAF15t0POw7oHaFjC-AySwvDmNyS3tZxbTI"
 
-# ✅ Store last QuizBot message ID
-last_quizbot_message_id = {}
-
-# 🟢 `/start` command
-async def start(update, context):
-    await update.message.reply_text("🤖 Bot is running! Send a quiz result to test deletion.")
-
-# ✅ Detect & store QuizBot message
-async def detect_quizbot_message(update, context):
+async def debug_message(update, context):
     message = update.message
     chat_id = message.chat_id
 
-    # ✅ Check if message is from QuizBot
-    if message.via_bot:
-        print(f"📩 Received message from: {message.via_bot.username}")  # Debugging
-        if message.via_bot.username == "QuizBot":  # Ensure it's from QuizBot
-            last_quizbot_message_id[chat_id] = message.message_id
-            print(f"✅ Stored QuizBot message ID: {message.message_id}")
-        else:
-            print(f"⚠️ Message from different bot: {message.via_bot.username}")
-    else:
-        print("⚠️ Message is NOT from a bot!")
+    print("\n📩 NEW MESSAGE RECEIVED:")
+    print(f"- Chat ID: {chat_id}")
+    print(f"- Message ID: {message.message_id}")
+    print(f"- Text: {message.text if message.text else 'No Text'}")
+    print(f"- Via Bot: {message.via_bot.username if message.via_bot else 'No Bot'}")
+    print(f"- Forwarded: {'Yes' if message.forward_date else 'No'}")
+    print(f"- Reply To: {message.reply_to_message.message_id if message.reply_to_message else 'No Reply'}")
 
-# 🏆 Delete last QuizBot message & send leaderboard
-async def delete_and_send_leaderboard(update, context):
-    chat_id = update.effective_chat.id
-
-    if chat_id in last_quizbot_message_id:
-        message_id = last_quizbot_message_id[chat_id]
-        try:
-            print(f"🗑 Trying to delete message ID: {message_id}")
-            await asyncio.sleep(2)  # Short delay
-            await context.bot.delete_message(chat_id, message_id)
-            print(f"✅ Deleted QuizBot message ID: {message_id}")
-            del last_quizbot_message_id[chat_id]  # Remove from storage
-        except Exception as e:
-            print(f"❌ Error deleting message: {e}")
-            await context.bot.send_message(chat_id, f"❌ Error deleting message: {e}")  # Debugging
-    else:
-        print("⚠️ No stored QuizBot message to delete.")
-
-    # ✅ Send Leaderboard
-    await asyncio.sleep(1)  # Short delay before sending leaderboard
-    leaderboard_text = "🏆 **Final Leaderboard:**\n1️⃣ User1 - 100 pts\n2️⃣ User2 - 90 pts\n3️⃣ User3 - 80 pts"
-    await context.bot.send_message(chat_id=chat_id, text=leaderboard_text)
-
-# ✅ Setup Telegram Bot
 app = Application.builder().token(TOKEN).build()
 
-# 🟢 `/start` command
-app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.ALL, debug_message))
 
-# 🟢 Detect & store QuizBot messages
-app.add_handler(MessageHandler(filters.ALL, detect_quizbot_message))
-
-# 🏆 Command to delete QuizBot message & send leaderboard
-app.add_handler(CommandHandler("leaderboard", delete_and_send_leaderboard))
-
-print("🤖 Bot Started...")
+print("🤖 Debugging Bot Started...")
 app.run_polling()
