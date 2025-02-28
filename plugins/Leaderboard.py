@@ -12,7 +12,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
         chat_id = call.message.chat.id
         message_id = call.message.message_id
         data_parts = call.data.split("_")
-        
+        quiz_title = "Unknown Quiz"
         quiz_id = data_parts[1]
         page = int(data_parts[2]) if len(data_parts) > 2 else 1  # Default Page = 1
 
@@ -26,8 +26,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
                 bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
                 return
 
-            quiz_title = quiz.get("title", "Unknown Quiz")  # ✅ Assign quiz title properly
-
+            
             sheet_id = quiz["sheet"]
             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
 
@@ -44,6 +43,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
                     return
 
                 valid_records = {}
+                usernames = {} 
                 total_marks = None
 
                 for row in rows[1:]:  # Skip header
@@ -66,6 +66,16 @@ def register_handlers(bot, quiz_collection, rank_collection):
                         # Store only first valid attempt per user
                         if student_id not in valid_records:
                             valid_records[student_id] = score
+                             # ✅ Fetch user info only once and store
+                            try:
+                                user_info = bot.get_chat(student_id)
+                                username = f"@{user_info.username}" if user_info.username else user_info.first_name
+                            except Exception as e:
+                                print(f"Error fetching user {student_id}: {e}")
+                                username = "Unknown"
+
+                            usernames[student_id] = username  # ✅ Store username in cache
+
 
                     except (ValueError, IndexError) as e:
                         print(f"Skipping invalid row: {row} | Error: {e}")  # Debugging
@@ -97,12 +107,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
         leaderboard_text += "--------------------------------\n"
 
         for idx, (uid, score) in enumerate(current_records, start=start_idx + 1):
-            try:
-                user_info = bot.get_chat(uid)
-                username = f"@{user_info.username}" if user_info.username else user_info.first_name
-            except Exception as e:
-                print(f"Error fetching user {uid}: {e}")
-                username = "Unknown"
+            username = usernames.get(uid, "Unknown")  # ✅ Use cached username
 
             leaderboard_text += f"🏅 {idx}. {score} pts | {username}\n"
 
