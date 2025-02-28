@@ -22,7 +22,7 @@ async def delete_and_send_leaderboard(update, context):
 
     if chat_id in last_quizbot_message_id:
         try:
-            print(f"🗑 Trying to delete message ID: {last_quizbot_message_id[chat_id]}")  # Debugging
+            await asyncio.sleep(2)  # ✅ Delay to make sure deletion happens
             await context.bot.delete_message(chat_id, last_quizbot_message_id[chat_id])
             print(f"✅ Deleted QuizBot message ID: {last_quizbot_message_id[chat_id]}")
             del last_quizbot_message_id[chat_id]
@@ -30,6 +30,7 @@ async def delete_and_send_leaderboard(update, context):
             print(f"❌ Error deleting message: {e}")
 
     # ✅ Send Leaderboard
+    await asyncio.sleep(1)  # ✅ Short delay before sending leaderboard
     leaderboard_text = "🏆 **Final Leaderboard:**\n1️⃣ User1 - 100 pts\n2️⃣ User2 - 90 pts\n3️⃣ User3 - 80 pts"
     await context.bot.send_message(chat_id=chat_id, text=leaderboard_text)
 
