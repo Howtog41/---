@@ -69,6 +69,12 @@ def register_handlers(bot, quiz_collection, rank_collection):
                 {"$set": {"leaderboard": sorted_records}},
                 upsert=True
             )
+            # Pagination Logic
+            users_per_page = 20
+            total_pages = math.ceil(len(sorted_records) / users_per_page)
+            start_idx = (page - 1) * users_per_page
+            end_idx = start_idx + users_per_page
+            current_records = sorted_records[start_idx:end_idx]
 
             # Generate Leaderboard Text
             leaderboard_text = f"📊 <b>Leaderboard for {quiz['title']}:</b>\n"
@@ -85,13 +91,16 @@ def register_handlers(bot, quiz_collection, rank_collection):
 
                 leaderboard_text += f"🏅 {idx}. {score} pts | {username}\n"
 
-            # Paginate if too long
-            if len(leaderboard_text) > 4000:
-                chunks = [leaderboard_text[i:i+4000] for i in range(0, len(leaderboard_text), 4000)]
-                for chunk in chunks:
-                    bot.send_message(chat_id, chunk, parse_mode="HTML")
-            else:
-                bot.send_message(chat_id, leaderboard_text, parse_mode="HTML")
+            # Create Inline Buttons for Pagination
+            keyboard = InlineKeyboardMarkup()
+            buttons = []
 
-        except requests.RequestException as e:
-            bot.send_message(chat_id, f"❌ Error fetching leaderboard: {e}")
+            if page > 1:
+                buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"leaderboard_{quiz_id}_{page - 1}"))
+            if page < total_pages:
+                buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"leaderboard_{quiz_id}_{page + 1}"))
+
+            if buttons:
+                keyboard.row(*buttons)
+
+            bot.send_message(chat_id, leaderboard_text, parse_mode="HTML", reply_markup=keyboard)
