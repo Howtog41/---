@@ -15,16 +15,6 @@ def register_handlers(bot, quiz_collection, rank_collection):
         quiz_id = data_parts[1]
         page = int(data_parts[2]) if len(data_parts) > 2 else 1  # Default Page = 1
 
-        first_request = page == 1  # ✅ Check if this is the first request
-
-        if first_request:
-            # 🔹 Sirf pehli baar "Please wait" message bhejna hai
-            temp_msg = bot.send_message(chat_id, "⏳ Please wait, fetching data...")
-            message_id = temp_msg.message_id
-        else:
-            # 🔹 Pagination ke liye existing message ka hi use karna hai
-            message_id = call.message.message_id
-        
         # ✅ Check if leaderboard is cached
         if (chat_id, quiz_id) in leaderboard_cache:
             sorted_records, total_pages, quiz_title, usernames = leaderboard_cache[(chat_id, quiz_id)]
