@@ -10,6 +10,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
     def show_leaderboard(call):
         chat_id = call.message.chat.id
+        message_id = call.message.message_id
         data_parts = call.data.split("_")
         quiz_title = "Unknown Quiz"
         quiz_id = data_parts[1]
@@ -121,4 +122,4 @@ def register_handlers(bot, quiz_collection, rank_collection):
             keyboard.row(*buttons)
 
         # ✅ Update the same message instead of sending a new one
-        bot.send_message(chat_id, leaderboard_text, parse_mode="HTML", reply_markup=keyboard)
+       bot.edit_message_text(leaderboard_text, chat_id, message_id, parse_mode="HTML", reply_markup=keyboard)
