@@ -4,7 +4,7 @@ import csv
 import io
 import math
 
-leaderboard_cache = {}  # ✅ Temporary caching for leaderboard (per session)
+leaderboard_cache = {}  # ✅ Caching for leaderboard
 
 def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
@@ -16,9 +16,9 @@ def register_handlers(bot, quiz_collection, rank_collection):
         quiz_id = data_parts[1]
         page = int(data_parts[2]) if len(data_parts) > 2 else 1  # Default Page = 1
 
-        # ✅ Check if leaderboard is already in cache
+        # ✅ Check if leaderboard is cached
         if (chat_id, quiz_id) in leaderboard_cache:
-            sorted_records, total_pages, quiz_title = leaderboard_cache[(chat_id, quiz_id)]
+            sorted_records, total_pages, quiz_title, usernames = leaderboard_cache[(chat_id, quiz_id)]
         else:
             # 🛠 Fetch leaderboard directly from Google Sheet
             quiz = quiz_collection.find_one({"quiz_id": quiz_id})
@@ -26,7 +26,6 @@ def register_handlers(bot, quiz_collection, rank_collection):
                 bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
                 return
 
-            
             sheet_id = quiz["sheet"]
             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
 
@@ -43,7 +42,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
                     return
 
                 valid_records = {}
-                usernames = {} 
+                usernames = {}  # ✅ Store usernames here
                 total_marks = None
 
                 for row in rows[1:]:  # Skip header
@@ -66,7 +65,8 @@ def register_handlers(bot, quiz_collection, rank_collection):
                         # Store only first valid attempt per user
                         if student_id not in valid_records:
                             valid_records[student_id] = score
-                             # ✅ Fetch user info only once and store
+
+                            # ✅ Fetch user info only once and store
                             try:
                                 user_info = bot.get_chat(student_id)
                                 username = f"@{user_info.username}" if user_info.username else user_info.first_name
@@ -75,7 +75,6 @@ def register_handlers(bot, quiz_collection, rank_collection):
                                 username = "Unknown"
 
                             usernames[student_id] = username  # ✅ Store username in cache
-
 
                     except (ValueError, IndexError) as e:
                         print(f"Skipping invalid row: {row} | Error: {e}")  # Debugging
@@ -89,7 +88,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
                 total_pages = math.ceil(len(sorted_records) / 20)
 
                 # ✅ Store fetched leaderboard in cache
-                leaderboard_cache[(chat_id, quiz_id)] = (sorted_records, total_pages, quiz_title)
+                leaderboard_cache[(chat_id, quiz_id)] = (sorted_records, total_pages, quiz["title"], usernames)
 
             except requests.RequestException as e:
                 bot.send_message(chat_id, f"❌ Error fetching leaderboard: {e}")
@@ -108,7 +107,6 @@ def register_handlers(bot, quiz_collection, rank_collection):
 
         for idx, (uid, score) in enumerate(current_records, start=start_idx + 1):
             username = usernames.get(uid, "Unknown")  # ✅ Use cached username
-
             leaderboard_text += f"🏅 {idx}. {score} pts | {username}\n"
 
         # 🔹 Create Inline Buttons for Pagination
