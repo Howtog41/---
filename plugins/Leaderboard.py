@@ -6,7 +6,7 @@ import math
 
 leaderboard_cache = {}  # ✅ Temporary caching for leaderboard (per session)
 
-def register_handlers(bot, quiz_collection):
+def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
     def show_leaderboard(call):
         chat_id = call.message.chat.id
