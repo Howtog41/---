@@ -87,11 +87,59 @@ def register_handlers(bot, quiz_collection, rank_collection):
     🔗 <b>Shareable Link:</b> <code>{shareable_link}</code>
     """
         bot.edit_message_text(f"📌 <b>{quiz_title}</b>\n📝 {quiz_desc}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_"))
-    def edit_quiz(call):
-        quiz_id = call.data.replace("edit_", "")
-        bot.send_message(call.message.chat.id, f"📝 Editing quiz {quiz_id}... (Functionality to be added)")
     
+    
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_quiz_"))
+    def edit_quiz(call):
+        chat_id = call.message.chat.id
+        quiz_id = call.data.replace("edit_quiz_", "")
+
+        # Fetch quiz details
+        quiz = quiz_collection.find_one({"quiz_id": quiz_id})
+        if not quiz:
+            bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
+            return
+
+        # Inline keyboard for editing options
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("✏️ Edit Form Link", callback_data=f"edit_form_{quiz_id}"),
+            InlineKeyboardButton("📊 Edit Sheet Link", callback_data=f"edit_sheet_{quiz_id}")
+        )
+        bot.send_message(chat_id, "📝 What do you want to edit?", reply_markup=markup)
+
+    # Handle Form Link Editing
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_form_"))
+    def edit_form_link(call):
+        chat_id = call.message.chat.id
+        quiz_id = call.data.replace("edit_form_", "")
+
+        msg = bot.send_message(chat_id, "🔗 Send the new Form link:")
+        bot.register_next_step_handler(msg, save_form_link, quiz_id)
+
+    def save_form_link(message, quiz_id):
+        new_link = message.text.strip()
+
+        # Update in database
+        quiz_collection.update_one({"quiz_id": quiz_id}, {"$set": {"form": new_link}})
+        bot.send_message(message.chat.id, "✅ Form link updated successfully!")
+
+    # Handle Sheet Link Editing
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("edit_sheet_"))
+    def edit_sheet_link(call):
+        chat_id = call.message.chat.id
+        quiz_id = call.data.replace("edit_sheet_", "")
+
+        msg = bot.send_message(chat_id, "📊 Send the new Sheet link:")
+        bot.register_next_step_handler(msg, save_sheet_link, quiz_id)
+
+    def save_sheet_link(message, quiz_id):
+        new_link = message.text.strip()
+
+        # Update in database
+        quiz_collection.update_one({"quiz_id": quiz_id}, {"$set": {"sheet": new_link}})
+        bot.send_message(message.chat.id, "✅ Sheet link updated successfully!")
+
     @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
     def delete_quiz(call):
         quiz_id = call.data.replace("delete_", "").strip()  # Extra spaces remove karo
