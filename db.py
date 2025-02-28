@@ -21,20 +21,28 @@ async def detect_quizbot_message(update, context):
         if message.via_bot.username == "QuizBot":  # Ensure it's from QuizBot
             last_quizbot_message_id[chat_id] = message.message_id
             print(f"✅ Stored QuizBot message ID: {message.message_id}")
+        else:
+            print(f"⚠️ Message from different bot: {message.via_bot.username}")
+    else:
+        print("⚠️ Message is NOT from a bot!")
 
 # 🏆 Delete last QuizBot message & send leaderboard
 async def delete_and_send_leaderboard(update, context):
     chat_id = update.effective_chat.id
 
     if chat_id in last_quizbot_message_id:
+        message_id = last_quizbot_message_id[chat_id]
         try:
-            print(f"🗑 Trying to delete message ID: {last_quizbot_message_id[chat_id]}")
+            print(f"🗑 Trying to delete message ID: {message_id}")
             await asyncio.sleep(2)  # Short delay
-            await context.bot.delete_message(chat_id, last_quizbot_message_id[chat_id])
-            print(f"✅ Deleted QuizBot message ID: {last_quizbot_message_id[chat_id]}")
+            await context.bot.delete_message(chat_id, message_id)
+            print(f"✅ Deleted QuizBot message ID: {message_id}")
             del last_quizbot_message_id[chat_id]  # Remove from storage
         except Exception as e:
             print(f"❌ Error deleting message: {e}")
+            await context.bot.send_message(chat_id, f"❌ Error deleting message: {e}")  # Debugging
+    else:
+        print("⚠️ No stored QuizBot message to delete.")
 
     # ✅ Send Leaderboard
     await asyncio.sleep(1)  # Short delay before sending leaderboard
