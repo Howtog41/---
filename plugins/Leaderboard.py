@@ -2,13 +2,13 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
 import csv
 import io
-    
+
 def register_handlers(bot, quiz_collection, rank_collection):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("leaderboard_"))
     def show_leaderboard(call):
         chat_id = call.message.chat.id
         quiz_id = call.data.replace("leaderboard_", "")
-        
+
         quiz = quiz_collection.find_one({"quiz_id": quiz_id})
         if not quiz:
             bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
@@ -65,11 +65,17 @@ def register_handlers(bot, quiz_collection, rank_collection):
 
             # 🔹 Generate Leaderboard Text
             leaderboard_text = f"📊 <b>Leaderboard for {quiz['title']}:</b>\n"
-            leaderboard_text += "🏆 Rank | 🏅 Score | 🆔 User ID\n"
+            leaderboard_text += "🏆 Rank | 🏅 Score | 👤 Username\n"
             leaderboard_text += "--------------------------------\n"
 
             for idx, (uid, score) in enumerate(sorted_records, 1):
-                leaderboard_text += f"🏅 {idx}. {score} pts | {uid}\n"
+                try:
+                    user_info = bot.get_chat(uid)  # ✅ Fetch User Info
+                    username = f"@{user_info.username}" if user_info.username else user_info.first_name
+                except:
+                    username = "Unknown"  # ✅ If username not found
+
+                leaderboard_text += f"🏅 {idx}. {score} pts | {username}\n"
 
             bot.send_message(chat_id, leaderboard_text, parse_mode="HTML")
 
