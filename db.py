@@ -6,26 +6,26 @@ TOKEN = "8151017957:AAF15t0POw7oHaFjC-AySwvDmNyS3tZxbTI"
 # ✅ Store last quizbot message to delete later
 last_quizbot_message_id = {}
 
-# ✅ Detect & store QuizBot message
 async def detect_quizbot_message(update, context):
     message = update.message
     chat_id = message.chat_id
 
     # ✅ Check if message is from QuizBot
-    if message.via_bot and message.via_bot.username == "QuizBot":
-        last_quizbot_message_id[chat_id] = message.message_id  # Store the message ID
-        print(f"✅ Stored QuizBot message ID: {message.message_id}")
+    if message.via_bot:
+        print(f"📩 Received message from: {message.via_bot.username}")  # Debugging
+        if message.via_bot.username == "QuizBot":
+            last_quizbot_message_id[chat_id] = message.message_id
+            print(f"✅ Stored QuizBot message ID: {message.message_id}")
 
-# 🏆 Delete last QuizBot message & send leaderboard
 async def delete_and_send_leaderboard(update, context):
     chat_id = update.effective_chat.id
 
-    # ✅ Check if we have a stored QuizBot message
     if chat_id in last_quizbot_message_id:
         try:
+            print(f"🗑 Trying to delete message ID: {last_quizbot_message_id[chat_id]}")  # Debugging
             await context.bot.delete_message(chat_id, last_quizbot_message_id[chat_id])
             print(f"✅ Deleted QuizBot message ID: {last_quizbot_message_id[chat_id]}")
-            del last_quizbot_message_id[chat_id]  # Remove from storage
+            del last_quizbot_message_id[chat_id]
         except Exception as e:
             print(f"❌ Error deleting message: {e}")
 
