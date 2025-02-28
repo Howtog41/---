@@ -121,4 +121,4 @@ def register_handlers(bot, quiz_collection, rank_collection):
             keyboard.row(*buttons)
 
         # ✅ Update the same message instead of sending a new one
-        bot.edit_message_text(leaderboard_text, chat_id, temp_msg.message_id, parse_mode="HTML", reply_markup=keyboard)
+        bot.edit_message_text(leaderboard_text, chat_id, parse_mode="HTML", reply_markup=keyboard)
