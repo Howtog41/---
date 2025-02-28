@@ -35,49 +35,63 @@ def register_handlers(bot, quiz_collection, rank_collection):
             for row in rows[1:]:  # Skip header
                 try:
                     if len(row) < 3:
-                        continue  # ❌ Skip invalid rows
+                        continue  # Skip invalid rows
 
-                    student_id = int(row[2].strip())  # ✅ Column C (3rd Column) → User ID
-                    score_parts = row[1].strip().split("/")  # ✅ Column B (2nd Column) → "X / Y" Format
+                    student_id = int(row[2].strip())  # Column C (User ID)
+                    score_parts = row[1].strip().split("/")  # Column B ("X / Y")
 
                     if len(score_parts) != 2:
-                        continue  # ❌ Skip invalid score format
+                        continue  # Skip invalid score format
 
-                    score = int(score_parts[0].strip())  # ✅ Extract Score
-                    total = int(score_parts[1].strip())  # ✅ Extract Total Marks
+                    score = int(score_parts[0].strip())  # Extract Score
+                    total = int(score_parts[1].strip())  # Extract Total Marks
 
                     if total_marks is None:
-                        total_marks = total  # ✅ Set Total Marks
+                        total_marks = total  # Set Total Marks
 
-                    # ✅ Ignore Duplicate Attempts, Keep Only First Entry
+                    # Store only first valid attempt per user
                     if student_id not in valid_records:
                         valid_records[student_id] = score
 
                 except (ValueError, IndexError) as e:
-                    print(f"Skipping invalid row: {row} | Error: {e}")  # 🔍 Debugging
+                    print(f"Skipping invalid row: {row} | Error: {e}")  # Debugging
 
             if not valid_records:
                 bot.send_message(chat_id, "❌ No valid scores found in the sheet! Check format.")
                 return
 
-            # ✅ Sort Users Based on Score (Descending)
+            # Sort Users Based on Score (Descending)
             sorted_records = sorted(valid_records.items(), key=lambda x: x[1], reverse=True)
 
-            # 🔹 Generate Leaderboard Text
+            # Store in MongoDB for caching
+            rank_collection.update_one(
+                {"quiz_id": quiz_id},
+                {"$set": {"leaderboard": sorted_records}},
+                upsert=True
+            )
+
+            # Generate Leaderboard Text
             leaderboard_text = f"📊 <b>Leaderboard for {quiz['title']}:</b>\n"
             leaderboard_text += "🏆 Rank | 🏅 Score | 👤 Username\n"
             leaderboard_text += "--------------------------------\n"
 
-            for idx, (uid, score) in enumerate(sorted_records, 1):
+            for idx, (uid, score) in enumerate(sorted_records[:20], 1):  # Limit to top 20
                 try:
-                    user_info = bot.get_chat(uid)  # ✅ Fetch User Info
+                    user_info = bot.get_chat(uid)
                     username = f"@{user_info.username}" if user_info.username else user_info.first_name
-                except:
-                    username = "Unknown"  # ✅ If username not found
+                except Exception as e:
+                    print(f"Error fetching user {uid}: {e}")
+                    username = "Unknown"
 
                 leaderboard_text += f"🏅 {idx}. {score} pts | {username}\n"
 
-            bot.send_message(chat_id, leaderboard_text, parse_mode="HTML")
+            # Paginate if too long
+            if len(leaderboard_text) > 4000:
+                chunks = [leaderboard_text[i:i+4000] for i in range(0, len(leaderboard_text), 4000)]
+                for chunk in chunks:
+                    bot.send_message(chat_id, chunk, parse_mode="HTML")
+            else:
+                bot.send_message(chat_id, leaderboard_text, parse_mode="HTML")
 
-        except Exception as e:
+        except requests.RequestException as e:
             bot.send_message(chat_id, f"❌ Error fetching leaderboard: {e}")
