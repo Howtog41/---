@@ -133,13 +133,11 @@ def register_handlers(bot, quiz_collection, rank_collection):
         msg = bot.send_message(chat_id, "📊 Send the new Sheet link:")
         bot.register_next_step_handler(msg, save_sheet_link, quiz_id)
 
-    
-
     def save_sheet_link(message, quiz_id):
         new_link = message.text.strip()
 
         # Validate Google Sheets link
-        sheet_pattern = r"https://docs\.google\.com/spreadsheets/d/([\w-]+)/edit\?usp=sharing"
+        sheet_pattern = r"https://docs\.google\.com/spreadsheets/d/([\w-]+)"
         match = re.match(sheet_pattern, new_link)
 
         if not match:
@@ -148,12 +146,14 @@ def register_handlers(bot, quiz_collection, rank_collection):
 
         # Extract only the necessary part of the link
         sheet_id = match.group(1)
-        clean_link = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?usp=sharing"
+        clean_link = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
 
         # Update in database
         quiz_collection.update_one({"quiz_id": quiz_id}, {"$set": {"sheet": clean_link}})
         bot.send_message(message.chat.id, "✅ Sheet link updated successfully!")
 
+
+    
     @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
     def delete_quiz(call):
         quiz_id = call.data.replace("delete_", "").strip()  # Extra spaces remove karo
