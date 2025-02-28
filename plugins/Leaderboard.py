@@ -12,7 +12,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
         chat_id = call.message.chat.id
         message_id = call.message.message_id
         data_parts = call.data.split("_")
-        quiz_title = "Unknown Quiz"
+        
         quiz_id = data_parts[1]
         page = int(data_parts[2]) if len(data_parts) > 2 else 1  # Default Page = 1
 
@@ -25,6 +25,8 @@ def register_handlers(bot, quiz_collection, rank_collection):
             if not quiz:
                 bot.answer_callback_query(call.id, "❌ Quiz not found!", show_alert=True)
                 return
+
+            quiz_title = quiz.get("title", "Unknown Quiz")  # ✅ Assign quiz title properly
 
             sheet_id = quiz["sheet"]
             sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
@@ -77,7 +79,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
                 total_pages = math.ceil(len(sorted_records) / 20)
 
                 # ✅ Store fetched leaderboard in cache
-                leaderboard_cache[(chat_id, quiz_id)] = (sorted_records, total_pages, quiz["title"])
+                leaderboard_cache[(chat_id, quiz_id)] = (sorted_records, total_pages, quiz_title)
 
             except requests.RequestException as e:
                 bot.send_message(chat_id, f"❌ Error fetching leaderboard: {e}")
