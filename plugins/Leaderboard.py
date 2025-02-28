@@ -12,7 +12,7 @@ def register_handlers(bot, quiz_collection, rank_collection):
         chat_id = call.message.chat.id
         message_id = call.message.message_id
         data_parts = call.data.split("_")
-        
+        quiz_title = "Unknown Quiz"
         quiz_id = data_parts[1]
         page = int(data_parts[2]) if len(data_parts) > 2 else 1  # Default Page = 1
 
