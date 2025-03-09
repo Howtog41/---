@@ -9,8 +9,7 @@ async def start(update: Update, context):
     await update.message.reply_text("Welcome! Send me a poll, and I'll convert it to a PDF with all details.")
 
 async def handle_poll(update: Update, context):
-    poll = update.poll
-    
+    poll = update.message.poll
     question = poll.question
     options = [option.text for option in poll.options]
     votes = [option.voter_count for option in poll.options]
