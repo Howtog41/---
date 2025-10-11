@@ -15,7 +15,7 @@ quiz_collection = db["quizzes"]
 rank_collection = db["rankings"]
 
 # ✅ Bot Token
-BOT_TOKEN = "8151017957:AAF15t0POw7oHaFjC-AySwvDmNyS3tZxbTI"
+BOT_TOKEN = "8198906553:AAEjaoFm0uGkrCSZeoipwIt7m8GzOtIx2QY"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # 🔍 Extract Google Sheet ID from the given link
