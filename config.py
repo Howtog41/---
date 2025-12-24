@@ -1,5 +1,5 @@
 BOT_TOKEN = "8198906553:AAEjaoFm0uGkrCSZeoipwIt7m8GzOtIx2QY"
-MONGO_URI = "mongodb+srv://terabox255:h9PjRSpCHsHw5zzt@cluster0.nakwhlt.mongodb.net/?retryWrites=true&w=majority"
+MONGO_URI = ""
 DB_NAME = "quiz_bot_db"
 quiz_collection = "quizzes"
 rank_collection = "rankings"
