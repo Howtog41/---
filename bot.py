@@ -24,6 +24,7 @@ DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 CSV, LIMIT, TIME, CHANNEL, PREMSG = range(5)
+EDIT_INPUT = 100
 
 REQUIRED_COLUMNS = [
     "Question","Option A","Option B",
@@ -80,11 +81,10 @@ async def send_mcqs(schedule_id, bot):
         return
 
     df = pd.read_csv(s["csv_path"])
-    total = len(df)
     sent = s["sent_mcq"]
     limit = s["daily_limit"]
 
-    if sent >= total:
+    if sent >= len(df):
         return
 
     batch = df.iloc[sent: sent + limit]
@@ -100,14 +100,9 @@ async def send_mcqs(schedule_id, bot):
         ]
         correct = ["A","B","C","D"].index(row["Answer"])
 
-        question = (
-            f"{row['Question']}\n\n"
-            f"📝 {row['Description']}"
-        )
-
         await bot.send_poll(
             chat_id=s["channel_id"],
-            question=question[:300],
+            question=row["Question"][:300],
             options=options,
             type="quiz",
             correct_option_id=correct,
@@ -120,7 +115,7 @@ async def send_mcqs(schedule_id, bot):
         {"$inc": {"sent_mcq": len(batch)}}
     )
 
-# ================= START =================
+# ================= BASIC =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 MCQ Scheduler Bot\n\n"
@@ -146,7 +141,7 @@ async def get_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["csv"] = path
     context.user_data["total"] = len(res)
 
-    await update.message.reply_text("🔢 Daily MCQ limit (1–10)")
+    await update.message.reply_text("🔢 Daily MCQ limit")
     return LIMIT
 
 async def get_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,7 +151,7 @@ async def get_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["time"] = update.message.text
-    await update.message.reply_text("📢 Channel ID")
+    await update.message.reply_text("📢 Channel ID / @username")
     return CHANNEL
 
 async def get_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,43 +193,124 @@ async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= SETTINGS =================
 async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_schedules = list(schedules.find({"user_id": update.effective_user.id}))
-    if not user_schedules:
-        await update.message.reply_text("❌ No schedules found")
-        return
-
+    data = schedules.find({"user_id": update.effective_user.id})
     kb = []
-    for s in user_schedules:
+
+    for s in data:
         kb.append([
             InlineKeyboardButton(
-                s["csv_path"].split("/")[-1],
+                os.path.basename(s["csv_path"]),
                 callback_data=f"view:{s['_id']}"
             )
         ])
 
+    if not kb:
+        await update.message.reply_text("❌ No schedules")
+        return
+
     await update.message.reply_text(
-        "⚙ Your Schedules",
+        "⚙ Your schedules",
         reply_markup=InlineKeyboardMarkup(kb)
     )
 
+# ================= CALLBACK =================
 async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-
     action, sid = q.data.split(":")
-    s = schedules.find_one({"_id": ObjectId(sid)})
-    if not s:
-        await q.edit_message_text("❌ Schedule not found")
-        return
+    sid = ObjectId(sid)
 
     if action == "view":
+        s = schedules.find_one({"_id": sid})
+        kb = [
+            [InlineKeyboardButton("✏ Edit", callback_data=f"edit:{sid}")],
+            [InlineKeyboardButton(
+                "⏸ Pause" if s["status"] == "active" else "▶ Resume",
+                callback_data=f"{'pause' if s['status']=='active' else 'resume'}:{sid}"
+            )],
+            [InlineKeyboardButton("❌ Delete", callback_data=f"delete:{sid}")]
+        ]
+
         await q.edit_message_text(
-            f"📂 CSV: {s['csv_path']}\n"
-            f"📊 Progress: {s['sent_mcq']} / {s['total_mcq']}\n"
             f"⏰ Time: {s['time']}\n"
             f"🔢 Daily: {s['daily_limit']}\n"
-            f"🟢 Status: {s['status']}"
+            f"📊 {s['sent_mcq']} / {s['total_mcq']}\n"
+            f"📌 Status: {s['status']}",
+            reply_markup=InlineKeyboardMarkup(kb)
         )
+
+    elif action == "pause":
+        schedules.update_one({"_id": sid}, {"$set": {"status": "paused"}})
+        scheduler.remove_job(str(sid))
+        await q.edit_message_text("⏸ Schedule paused")
+
+    elif action == "resume":
+        s = schedules.find_one({"_id": sid})
+        h, m = map(int, s["time"].split(":"))
+        scheduler.add_job(
+            send_mcqs, "cron",
+            hour=h, minute=m,
+            args=[str(sid), context.bot],
+            id=str(sid),
+            replace_existing=True
+        )
+        schedules.update_one({"_id": sid}, {"$set": {"status": "active"}})
+        await q.edit_message_text("▶ Schedule resumed")
+
+    elif action == "delete":
+        schedules.delete_one({"_id": sid})
+        try:
+            scheduler.remove_job(str(sid))
+        except:
+            pass
+        await q.edit_message_text("❌ Schedule deleted")
+
+    elif action == "edit":
+        context.user_data["edit_sid"] = sid
+        kb = [
+            [InlineKeyboardButton("⏰ Time", callback_data="edit_time")],
+            [InlineKeyboardButton("🔢 Daily MCQ", callback_data="edit_limit")],
+            [InlineKeyboardButton("✉️ Pre-message", callback_data="edit_premsg")]
+        ]
+        await q.edit_message_text(
+            "✏ Select field to edit",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+
+# ================= EDIT =================
+async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    if q.data == "edit_time":
+        context.user_data["edit_field"] = "time"
+        await q.message.reply_text("⏰ New time (HH:MM)")
+
+    elif q.data == "edit_limit":
+        context.user_data["edit_field"] = "daily_limit"
+        await q.message.reply_text("🔢 New daily limit")
+
+    elif q.data == "edit_premsg":
+        context.user_data["edit_field"] = "pre_message"
+        await q.message.reply_text("✉️ New pre-message")
+
+    return EDIT_INPUT
+
+async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sid = context.user_data["edit_sid"]
+    field = context.user_data["edit_field"]
+
+    value = update.message.text
+    if field == "daily_limit":
+        value = int(value)
+
+    schedules.update_one(
+        {"_id": sid},
+        {"$set": {field: value}}
+    )
+
+    await update.message.reply_text("✅ Updated successfully")
+    return ConversationHandler.END
 
 # ================= MAIN =================
 def main():
@@ -253,14 +329,17 @@ def main():
             TIME: [MessageHandler(filters.TEXT, get_time)],
             CHANNEL: [MessageHandler(filters.TEXT, get_channel)],
             PREMSG: [MessageHandler(filters.TEXT, get_premsg)],
+            EDIT_INPUT: [MessageHandler(filters.TEXT, edit_input)]
         },
         fallbacks=[]
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(conv)
     app.add_handler(CommandHandler("setting", setting))
-    app.add_handler(CallbackQueryHandler(setting_action))
+    app.add_handler(conv)
+
+    app.add_handler(CallbackQueryHandler(setting_action, pattern="^(view|pause|resume|delete|edit):"))
+    app.add_handler(CallbackQueryHandler(edit_select, pattern="^edit_"))
 
     print("🤖 BOT RUNNING")
     app.run_polling()
