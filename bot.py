@@ -2,11 +2,15 @@ import os, asyncio, pandas as pd
 from datetime import datetime
 from pytz import timezone
 from pymongo import MongoClient
+from bson import ObjectId
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
+)
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    ConversationHandler, ContextTypes, CallbackQueryHandler, filters
+    ConversationHandler, ContextTypes,
+    CallbackQueryHandler, filters
 )
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -21,6 +25,11 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 CSV, LIMIT, TIME, CHANNEL, PREMSG = range(5)
 
+REQUIRED_COLUMNS = [
+    "Question","Option A","Option B",
+    "Option C","Option D","Answer","Description"
+]
+
 # ================= DB =================
 mongo = MongoClient(MONGO_URI)
 db = mongo["mcq_bot"]
@@ -29,13 +38,28 @@ schedules = db["schedules"]
 # ================= SCHEDULER =================
 scheduler = AsyncIOScheduler(timezone=TZ)
 
+# ================= CSV VALIDATION =================
+def validate_csv(path):
+    try:
+        df = pd.read_csv(path)
+    except:
+        return False, "❌ CSV read nahi ho rahi"
+
+    for col in REQUIRED_COLUMNS:
+        if col not in df.columns:
+            return False, f"❌ Missing column: {col}"
+
+    if df.empty:
+        return False, "❌ CSV empty hai"
+
+    if not df["Answer"].isin(["A","B","C","D"]).all():
+        return False, "❌ Answer sirf A/B/C/D hona chahiye"
+
+    return True, df
+
 # ================= STARTUP =================
 async def on_startup(app: Application):
     scheduler.start()
-    restore_jobs(app.bot)
-    print("✅ Scheduler restored")
-
-def restore_jobs(bot):
     for s in schedules.find({"status": "active"}):
         h, m = map(int, s["time"].split(":"))
         scheduler.add_job(
@@ -43,71 +67,86 @@ def restore_jobs(bot):
             "cron",
             hour=h,
             minute=m,
-            args=[s["_id"], bot],
+            args=[str(s["_id"]), app.bot],
             id=str(s["_id"]),
             replace_existing=True
         )
+    print("✅ Scheduler restored")
 
 # ================= SEND MCQS =================
 async def send_mcqs(schedule_id, bot):
-    data = schedules.find_one({"_id": schedule_id})
-    if not data or data["status"] != "active":
+    s = schedules.find_one({"_id": ObjectId(schedule_id)})
+    if not s or s["status"] != "active":
         return
 
-    df = pd.read_csv(data["csv_path"])
-    start = data["offset"]
-    end = start + data["daily_limit"]
-    batch = df.iloc[start:end]
+    df = pd.read_csv(s["csv_path"])
+    total = len(df)
+    sent = s["sent_mcq"]
+    limit = s["daily_limit"]
 
-    if batch.empty:
+    if sent >= total:
         return
 
-    await bot.send_message(data["channel_id"], data["pre_message"])
+    batch = df.iloc[sent: sent + limit]
+
+    await bot.send_message(s["channel_id"], s["pre_message"])
 
     for _, row in batch.iterrows():
         options = [
             row["Option A"],
             row["Option B"],
             row["Option C"],
-            row["Option D"],
+            row["Option D"]
         ]
         correct = ["A","B","C","D"].index(row["Answer"])
 
+        question = (
+            f"{row['Question']}\n\n"
+            f"📝 {row['Description']}"
+        )
+
         await bot.send_poll(
-            chat_id=data["channel_id"],
-            question=f"{row['Question']}\n\n📝 {row['Description']}",
+            chat_id=s["channel_id"],
+            question=question[:300],
             options=options,
             type="quiz",
             correct_option_id=correct,
-            is_anonymous=True,
-            explanation=row["Description"][:200],
+            is_anonymous=True
         )
         await asyncio.sleep(1)
 
     schedules.update_one(
-        {"_id": schedule_id},
-        {"$set": {"offset": end}}
+        {"_id": s["_id"]},
+        {"$inc": {"sent_mcq": len(batch)}}
     )
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 MCQ Scheduler Bot\n\n"
-        "/schedulemcq – MCQ schedule\n"
-        "/setting – manage schedule"
+        "/schedulemcq – New schedule\n"
+        "/setting – Manage schedules"
     )
 
 # ================= SCHEDULE FLOW =================
 async def schedulemcq(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📂 CSV bhejo")
+    await update.message.reply_text("📂 CSV file bhejo")
     return CSV
 
 async def get_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
-    path = f"{DATA_DIR}/{update.effective_user.id}.csv"
+    path = f"{DATA_DIR}/{update.effective_user.id}_{int(datetime.now().timestamp())}.csv"
     await file.download_to_drive(path)
+
+    ok, res = validate_csv(path)
+    if not ok:
+        await update.message.reply_text(res)
+        return ConversationHandler.END
+
     context.user_data["csv"] = path
-    await update.message.reply_text("🔢 Daily MCQ limit?")
+    context.user_data["total"] = len(res)
+
+    await update.message.reply_text("🔢 Daily MCQ limit (1–10)")
     return LIMIT
 
 async def get_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,17 +165,21 @@ async def get_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return PREMSG
 
 async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = context.user_data
+    d = context.user_data
+
     s = {
         "user_id": update.effective_user.id,
-        "csv_path": data["csv"],
-        "daily_limit": data["limit"],
-        "time": data["time"],
-        "channel_id": data["channel"],
+        "csv_path": d["csv"],
+        "total_mcq": d["total"],
+        "sent_mcq": 0,
+        "daily_limit": d["limit"],
+        "time": d["time"],
+        "channel_id": d["channel"],
         "pre_message": update.message.text,
-        "offset": 0,
-        "status": "active"
+        "status": "active",
+        "created_at": datetime.now()
     }
+
     r = schedules.insert_one(s)
 
     h, m = map(int, s["time"].split(":"))
@@ -145,56 +188,53 @@ async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "cron",
         hour=h,
         minute=m,
-        args=[r.inserted_id, context.bot],
+        args=[str(r.inserted_id), context.bot],
         id=str(r.inserted_id),
         replace_existing=True
     )
 
-    await update.message.reply_text("✅ MCQ Scheduled")
+    await update.message.reply_text("✅ Schedule created")
     return ConversationHandler.END
 
 # ================= SETTINGS =================
 async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = [
-        [InlineKeyboardButton("👁 View", callback_data="view")],
-        [InlineKeyboardButton("⏸ Pause", callback_data="pause"),
-         InlineKeyboardButton("▶ Resume", callback_data="resume")],
-        [InlineKeyboardButton("✏ Edit Time", callback_data="edit_time")],
-        [InlineKeyboardButton("✏ Edit Message", callback_data="edit_msg")],
-        [InlineKeyboardButton("❌ Delete", callback_data="delete")]
-    ]
-    await update.message.reply_text("⚙ Settings", reply_markup=InlineKeyboardMarkup(kb))
+    user_schedules = list(schedules.find({"user_id": update.effective_user.id}))
+    if not user_schedules:
+        await update.message.reply_text("❌ No schedules found")
+        return
+
+    kb = []
+    for s in user_schedules:
+        kb.append([
+            InlineKeyboardButton(
+                s["csv_path"].split("/")[-1],
+                callback_data=f"view:{s['_id']}"
+            )
+        ])
+
+    await update.message.reply_text(
+        "⚙ Your Schedules",
+        reply_markup=InlineKeyboardMarkup(kb)
+    )
 
 async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    s = schedules.find_one({"user_id": q.from_user.id})
+    action, sid = q.data.split(":")
+    s = schedules.find_one({"_id": ObjectId(sid)})
     if not s:
-        await q.edit_message_text("❌ No schedule")
+        await q.edit_message_text("❌ Schedule not found")
         return
 
-    if q.data == "view":
+    if action == "view":
         await q.edit_message_text(
             f"📂 CSV: {s['csv_path']}\n"
+            f"📊 Progress: {s['sent_mcq']} / {s['total_mcq']}\n"
             f"⏰ Time: {s['time']}\n"
-            f"📊 Daily: {s['daily_limit']}\n"
-            f"📈 Sent: {s['offset']}\n"
+            f"🔢 Daily: {s['daily_limit']}\n"
             f"🟢 Status: {s['status']}"
         )
-
-    elif q.data == "pause":
-        schedules.update_one({"_id": s["_id"]}, {"$set": {"status": "paused"}})
-        await q.edit_message_text("⏸ Paused")
-
-    elif q.data == "resume":
-        schedules.update_one({"_id": s["_id"]}, {"$set": {"status": "active"}})
-        await q.edit_message_text("▶ Resumed")
-
-    elif q.data == "delete":
-        scheduler.remove_job(str(s["_id"]))
-        schedules.delete_one({"_id": s["_id"]})
-        await q.edit_message_text("❌ Deleted")
 
 # ================= MAIN =================
 def main():
