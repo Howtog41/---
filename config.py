@@ -1,4 +1,4 @@
-BOT_TOKEN = "8198906553:AAEjaoFm0uGkrCSZeoipwIt7m8GzOtIx2QY"
+BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 MONGO_URI = ""
 DB_NAME = "quiz_bot_db"
 quiz_collection = "quizzes"
