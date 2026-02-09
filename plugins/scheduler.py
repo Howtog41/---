@@ -16,7 +16,7 @@ TZ = timezone("Asia/Kolkata")
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-MONGO_URI = "mongodb+srv://USER:PASS@cluster.mongodb.net/"
+MONGO_URI = "mongodb+srv://terabox255:0S79LfRAeOMrOdYj@cluster0.1gfjb8w.mongodb.net/?appName=Cluster0"
 mongo = MongoClient(MONGO_URI)
 db = mongo["mcq_bot"]
 schedules = db["schedules"]
