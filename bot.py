@@ -13,17 +13,21 @@ from telegram.ext import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ================= CONFIG =================
-BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
 TZ = timezone("Asia/Kolkata")
 
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ================= STATES =================
 CSV, COUNT, TIME, CHANNEL = range(4)
 
 # ================= SCHEDULER =================
 scheduler = AsyncIOScheduler(timezone=TZ)
+
+# ================= STARTUP HOOK =================
+async def on_startup(app: Application):
+    scheduler.start()
+    print("✅ Scheduler started successfully")
 
 # ================= HANDLERS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,7 +42,6 @@ async def schedulemcq(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     user_id = update.effective_user.id
-
     path = f"{DATA_DIR}/{user_id}.csv"
     await file.download_to_drive(path)
 
@@ -52,11 +55,11 @@ async def mcq_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not 1 <= count <= 10:
             raise ValueError
     except:
-        await update.message.reply_text("❌ 1 se 10 ke beech number bhejo")
+        await update.message.reply_text("❌ 1–10 ke beech number bhejo")
         return COUNT
 
     context.user_data["count"] = count
-    await update.message.reply_text("⏰ Time bhejo (HH:MM, 24hr)")
+    await update.message.reply_text("⏰ Time bhejo (HH:MM)")
     return TIME
 
 async def send_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -67,7 +70,7 @@ async def send_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TIME
 
     context.user_data["time"] = update.message.text
-    await update.message.reply_text("📢 Channel ID bhejo (e.g. -100xxxx)")
+    await update.message.reply_text("📢 Channel ID bhejo")
     return CHANNEL
 
 async def channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -83,18 +86,15 @@ async def channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHANNEL
 
     context.user_data["channel"] = channel
-
     schedule_job(context)
 
     await update.message.reply_text("✅ Schedule confirm ho gaya")
     return ConversationHandler.END
 
-# ================= JOB LOGIC =================
+# ================= JOB =================
 def schedule_job(context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     hour, minute = map(int, data["time"].split(":"))
-
-    job_id = f"{data['channel']}_{hour}_{minute}"
 
     scheduler.add_job(
         send_mcqs,
@@ -102,7 +102,7 @@ def schedule_job(context: ContextTypes.DEFAULT_TYPE):
         hour=hour,
         minute=minute,
         args=[data, context.bot],
-        id=job_id,
+        id=f"{data['channel']}_{hour}_{minute}",
         replace_existing=True
     )
 
@@ -134,10 +134,12 @@ async def send_mcqs(data, bot):
 
 # ================= MAIN =================
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    # ✅ Scheduler start AFTER app created
-    scheduler.start()
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(on_startup)   # ✅ MOST IMPORTANT LINE
+        .build()
+    )
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("schedulemcq", schedulemcq)],
@@ -153,7 +155,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv)
 
-    print("🤖 BOT RUNNING SUCCESSFULLY")
+    print("🤖 BOT STARTING…")
     app.run_polling()
 
 if __name__ == "__main__":
