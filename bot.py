@@ -13,7 +13,7 @@ from telegram.ext import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ================= CONFIG =================
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 TZ = timezone("Asia/Kolkata")
 
 DATA_DIR = "data"
