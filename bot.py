@@ -1,111 +1,123 @@
 import os
-import pandas as pd
 import asyncio
+import pandas as pd
 from datetime import datetime
+from pytz import timezone
+
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     ConversationHandler, ContextTypes, filters
 )
-from config import BOT_TOKEN
-from scheduler import scheduler
 
-# -------- STATES ----------
-CSV, COUNT, TIME, CHANNEL = range(4)
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-DATA_DIR = "users_data"
+# ================= CONFIG =================
+BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
+TZ = timezone("Asia/Kolkata")
+
+DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ---------- START ----------
+# ================= STATES =================
+CSV, COUNT, TIME, CHANNEL = range(4)
+
+# ================= SCHEDULER =================
+scheduler = AsyncIOScheduler(timezone=TZ)
+
+# ================= HANDLERS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Hi!\nUse /schedulemcq to schedule daily MCQs"
+        "👋 Hi\n/schedulemcq use karo daily MCQ schedule ke liye"
     )
 
-# ---------- STEP 1 ----------
 async def schedulemcq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📂 CSV file bhejo")
     return CSV
 
-# ---------- STEP 2 ----------
 async def receive_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     user_id = update.effective_user.id
+
     path = f"{DATA_DIR}/{user_id}.csv"
     await file.download_to_drive(path)
 
     context.user_data["csv"] = path
-    await update.message.reply_text("🔢 Daily kitne MCQ bhejne hain? (Max 10)")
+    await update.message.reply_text("🔢 Daily kitne MCQ? (1–10)")
     return COUNT
 
-# ---------- STEP 3 ----------
 async def mcq_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    count = int(update.message.text)
-    if count > 10 or count < 1:
-        await update.message.reply_text("❌ 1–10 ke beech number bhejo")
+    try:
+        count = int(update.message.text)
+        if not 1 <= count <= 10:
+            raise ValueError
+    except:
+        await update.message.reply_text("❌ 1 se 10 ke beech number bhejo")
         return COUNT
 
     context.user_data["count"] = count
-    await update.message.reply_text("⏰ Time bhejo (HH:MM format)")
+    await update.message.reply_text("⏰ Time bhejo (HH:MM, 24hr)")
     return TIME
 
-# ---------- STEP 4 ----------
 async def send_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         datetime.strptime(update.message.text, "%H:%M")
     except:
-        await update.message.reply_text("❌ Time format galat hai")
+        await update.message.reply_text("❌ Galat time format")
         return TIME
 
     context.user_data["time"] = update.message.text
-    await update.message.reply_text("📢 Channel ID bhejo")
+    await update.message.reply_text("📢 Channel ID bhejo (e.g. -100xxxx)")
     return CHANNEL
 
-# ---------- STEP 5 ----------
 async def channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     channel = update.message.text
     bot = context.bot
 
     try:
         member = await bot.get_chat_member(channel, bot.id)
-        if member.status not in ["administrator", "creator"]:
+        if member.status not in ("administrator", "creator"):
             raise Exception
     except:
-        await update.message.reply_text("❌ Bot admin nahi hai channel me")
+        await update.message.reply_text("❌ Bot channel ka admin nahi hai")
         return CHANNEL
 
     context.user_data["channel"] = channel
 
     schedule_job(context)
+
     await update.message.reply_text("✅ Schedule confirm ho gaya")
     return ConversationHandler.END
 
-# ---------- JOB ----------
-def schedule_job(context):
+# ================= JOB LOGIC =================
+def schedule_job(context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
-    user_id = context._user_id
-
     hour, minute = map(int, data["time"].split(":"))
+
+    job_id = f"{data['channel']}_{hour}_{minute}"
 
     scheduler.add_job(
         send_mcqs,
-        "cron",
+        trigger="cron",
         hour=hour,
         minute=minute,
         args=[data, context.bot],
-        id=str(user_id),
+        id=job_id,
         replace_existing=True
     )
 
-# ---------- MCQ SENDER ----------
 async def send_mcqs(data, bot):
+    if not os.path.exists(data["csv"]):
+        return
+
     df = pd.read_csv(data["csv"])
-    count = data["count"]
+    if df.empty:
+        return
 
-    send = df.head(count)
-    remain = df.iloc[count:]
+    send_df = df.head(data["count"])
+    remain_df = df.iloc[data["count"]:]
 
-    for _, row in send.iterrows():
+    for _, row in send_df.iterrows():
         text = (
             f"❓ {row['Question']}\n\n"
             f"A. {row['Option A']}\n"
@@ -118,16 +130,13 @@ async def send_mcqs(data, bot):
         await bot.send_message(data["channel"], text)
         await asyncio.sleep(1)
 
-    remain.to_csv(data["csv"], index=False)
+    remain_df.to_csv(data["csv"], index=False)
 
-# ---------- MAIN ----------
-
-
-
+# ================= MAIN =================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ✅ YAHI SAFE PLACE HAI
+    # ✅ Scheduler start AFTER app created
     scheduler.start()
 
     conv = ConversationHandler(
@@ -138,11 +147,14 @@ def main():
             TIME: [MessageHandler(filters.TEXT, send_time)],
             CHANNEL: [MessageHandler(filters.TEXT, channel_id)],
         },
-        fallbacks=[]
+        fallbacks=[],
     )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv)
 
-    print("🤖 Bot running...")
+    print("🤖 BOT RUNNING SUCCESSFULLY")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
