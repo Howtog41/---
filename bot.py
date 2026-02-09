@@ -3,10 +3,13 @@ from datetime import datetime
 from pytz import timezone
 from pymongo import MongoClient
 
-from telegram import Update
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
+)
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    ConversationHandler, ContextTypes, filters
+    ConversationHandler, ContextTypes,
+    CallbackQueryHandler, filters
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -18,7 +21,7 @@ TZ = timezone("Asia/Kolkata")
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-CSV, COUNT, TIME, CHANNEL, PREMSG = range(5)
+CSV, COUNT, TIME, PREMSG, CHANNEL, EDIT_TIME, EDIT_PREMSG = range(7)
 
 # ================= DB =================
 mongo = MongoClient(MONGO_URI)
@@ -35,13 +38,14 @@ async def on_startup(app):
     print("✅ Scheduler started & jobs restored")
 
 def restore_jobs(bot):
+    scheduler.remove_all_jobs()
     for s in schedules.find({"status": "active"}):
-        hour, minute = map(int, s["time"].split(":"))
+        h, m = map(int, s["time"].split(":"))
         scheduler.add_job(
             send_mcqs,
             "cron",
-            hour=hour,
-            minute=minute,
+            hour=h,
+            minute=m,
             args=[s, bot],
             id=str(s["_id"]),
             replace_existing=True
@@ -51,9 +55,8 @@ def restore_jobs(bot):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Hi\n"
-        "/schedulemcq – MCQ schedule\n"
-        "/setting – Change settings\n"
-        "/pause /resume /delete"
+        "/schedulemcq – New schedule\n"
+        "/setting – Manage schedule"
     )
 
 # ================= SCHEDULE FLOW =================
@@ -123,6 +126,7 @@ async def channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "offset": 0,
     }
 
+    schedules.delete_many({"user_id": update.effective_user.id})
     schedules.insert_one(data)
     restore_jobs(bot)
 
@@ -173,27 +177,107 @@ async def send_mcqs(data, bot):
         {"$set": {"offset": end}}
     )
 
-# ================= SETTINGS =================
-async def pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    schedules.update_one(
-        {"user_id": update.effective_user.id},
-        {"$set": {"status": "paused"}}
-    )
-    await update.message.reply_text("⏸ Paused")
-
-async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    schedules.update_one(
-        {"user_id": update.effective_user.id},
-        {"$set": {"status": "active"}}
-    )
-    await update.message.reply_text("▶ Resumed")
-
-async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ================= /SETTING =================
+async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = schedules.find_one({"user_id": update.effective_user.id})
-    if s:
-        scheduler.remove_job(str(s["_id"]))
-        schedules.delete_one({"_id": s["_id"]})
-    await update.message.reply_text("❌ Deleted")
+    if not s:
+        await update.message.reply_text("❌ No active schedule")
+        return
+
+    df = pd.read_csv(s["csv_path"])
+    total = len(df)
+    sent = s["offset"]
+    remaining = total - sent
+
+    text = (
+        f"📊 *Schedule Details*\n\n"
+        f"📁 CSV: `{os.path.basename(s['csv_path'])}`\n"
+        f"⏰ Time: `{s['time']}`\n"
+        f"🔢 Daily MCQ: `{s['daily_limit']}`\n"
+        f"📤 Sent MCQ: `{sent}`\n"
+        f"📥 Remaining MCQ: `{remaining}`\n\n"
+        f"📝 *Pre Message:*\n{s['pre_message']}"
+    )
+
+    kb = [
+        [
+            InlineKeyboardButton("⏸ Pause", callback_data="pause"),
+            InlineKeyboardButton("▶ Resume", callback_data="resume"),
+        ],
+        [
+            InlineKeyboardButton("⏰ Edit Time", callback_data="edit_time"),
+            InlineKeyboardButton("📝 Edit Message", callback_data="edit_msg"),
+        ],
+        [
+            InlineKeyboardButton("❌ Delete", callback_data="delete"),
+        ],
+    ]
+
+    await update.message.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(kb),
+    )
+
+# ================= CALLBACKS =================
+async def setting_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    uid = q.from_user.id
+
+    if q.data == "pause":
+        schedules.update_one({"user_id": uid}, {"$set": {"status": "paused"}})
+        await q.edit_message_text("⏸ Schedule paused")
+
+    elif q.data == "resume":
+        schedules.update_one({"user_id": uid}, {"$set": {"status": "active"}})
+        restore_jobs(context.bot)
+        await q.edit_message_text("▶ Schedule resumed")
+
+    elif q.data == "delete":
+        schedules.delete_one({"user_id": uid})
+        scheduler.remove_all_jobs()
+        restore_jobs(context.bot)
+        await q.edit_message_text("❌ Schedule deleted")
+
+    elif q.data == "edit_time":
+        context.user_data["edit"] = "time"
+        await q.edit_message_text("⏰ Naya time bhejo (HH:MM)")
+
+    elif q.data == "edit_msg":
+        context.user_data["edit"] = "msg"
+        await q.edit_message_text("📝 Naya pre-message bhejo")
+
+# ================= EDIT HANDLER =================
+async def edit_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    s = schedules.find_one({"user_id": uid})
+    if not s:
+        return
+
+    if context.user_data.get("edit") == "time":
+        try:
+            datetime.strptime(update.message.text, "%H:%M")
+        except:
+            await update.message.reply_text("❌ Galat time")
+            return
+
+        schedules.update_one(
+            {"user_id": uid},
+            {"$set": {"time": update.message.text}}
+        )
+        restore_jobs(context.bot)
+        await update.message.reply_text("✅ Time updated")
+
+    elif context.user_data.get("edit") == "msg":
+        schedules.update_one(
+            {"user_id": uid},
+            {"$set": {"pre_message": update.message.text}}
+        )
+        await update.message.reply_text("✅ Pre-message updated")
+
+    context.user_data.pop("edit", None)
 
 # ================= MAIN =================
 def main():
@@ -217,12 +301,12 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("setting", setting))
+    app.add_handler(CallbackQueryHandler(setting_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, edit_text))
     app.add_handler(conv)
-    app.add_handler(CommandHandler("pause", pause))
-    app.add_handler(CommandHandler("resume", resume))
-    app.add_handler(CommandHandler("delete", delete))
 
-    print("🤖 FULL MCQ BOT RUNNING")
+    print("🤖 FULL MCQ BOT WITH SETTING PANEL RUNNING")
     app.run_polling()
 
 if __name__ == "__main__":
