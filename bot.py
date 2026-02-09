@@ -121,8 +121,14 @@ async def send_mcqs(data, bot):
     remain.to_csv(data["csv"], index=False)
 
 # ---------- MAIN ----------
+
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # ✅ YAHI SAFE PLACE HAI
+    scheduler.start()
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("schedulemcq", schedulemcq)],
@@ -140,6 +146,3 @@ def main():
 
     print("🤖 Bot running...")
     app.run_polling()
-
-if __name__ == "__main__":
-    main()
