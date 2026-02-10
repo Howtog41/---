@@ -226,26 +226,34 @@ async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+
     action, sid = q.data.split(":")
     sid = ObjectId(sid)
 
     if action == "view":
         s = schedules.find_one({"_id": sid})
+
+        premsg = s.get("pre_message", "No pre-message")
+        premsg_title = premsg[:60] + ("..." if len(premsg) > 60 else "")
+
         kb = [
-            [InlineKeyboardButton("✏ Edit", callback_data=f"edit:{sid}")],
+            [InlineKeyboardButton("✏️ Edit", callback_data=f"edit:{sid}")],
             [InlineKeyboardButton(
                 "⏸ Pause" if s["status"] == "active" else "▶ Resume",
                 callback_data=f"{'pause' if s['status']=='active' else 'resume'}:{sid}"
             )],
-            [InlineKeyboardButton("❌ Delete", callback_data=f"delete:{sid}")]
+            [InlineKeyboardButton("❌ Delete", callback_data=f"delete:{sid}")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="back:setting")]
         ]
 
         await q.edit_message_text(
+            f"✉️ <b>{premsg_title}</b>\n\n"
             f"⏰ Time: {s['time']}\n"
-            f"🔢 Daily: {s['daily_limit']}\n"
-            f"📊 {s['sent_mcq']} / {s['total_mcq']}\n"
+            f"🔢 Daily MCQ: {s['daily_limit']}\n"
+            f"📊 Progress: {s['sent_mcq']} / {s['total_mcq']}\n"
             f"📌 Status: {s['status']}",
-            reply_markup=InlineKeyboardMarkup(kb)
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="HTML"
         )
 
     elif action == "pause":
@@ -275,35 +283,60 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("❌ Schedule deleted")
 
     elif action == "edit":
+        s = schedules.find_one({"_id": sid})
         context.user_data["edit_sid"] = sid
+
         kb = [
-            [InlineKeyboardButton("⏰ Time", callback_data="edit_time")],
-            [InlineKeyboardButton("🔢 Daily MCQ", callback_data="edit_limit")],
-            [InlineKeyboardButton("✉️ Pre-message", callback_data="edit_premsg")]
+            [InlineKeyboardButton("⏰ Edit Time", callback_data="edit_time")],
+            [InlineKeyboardButton("🔢 Edit Daily MCQ", callback_data="edit_limit")],
+            [InlineKeyboardButton("✉️ Edit Pre-message", callback_data="edit_premsg")],
+            [InlineKeyboardButton("⬅️ Back", callback_data=f"view:{sid}")]
         ]
+
         await q.edit_message_text(
-            "✏ Select field to edit",
-            reply_markup=InlineKeyboardMarkup(kb)
+            f"✏️ <b>Edit Schedule</b>\n\n"
+            f"⏰ Time: {s['time']}\n"
+            f"🔢 Daily MCQ: {s['daily_limit']}\n"
+            f"✉️ Pre-message:\n{s['pre_message']}",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="HTML"
         )
+
 
 # ================= EDIT =================
 async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
+    sid = context.user_data["edit_sid"]
+    s = schedules.find_one({"_id": sid})
+
     if q.data == "edit_time":
         context.user_data["edit_field"] = "time"
-        await q.message.reply_text("⏰ New time (HH:MM)")
+        await q.message.reply_text(
+            f"⏰ <b>Current Time:</b> {s['time']}\n\n"
+            f"Send new time (HH:MM)\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
 
     elif q.data == "edit_limit":
         context.user_data["edit_field"] = "daily_limit"
-        await q.message.reply_text("🔢 New daily limit")
+        await q.message.reply_text(
+            f"🔢 <b>Current Daily MCQ:</b> {s['daily_limit']}\n\n"
+            f"Send new limit\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
 
     elif q.data == "edit_premsg":
         context.user_data["edit_field"] = "pre_message"
-        await q.message.reply_text("✉️ New pre-message")
+        await q.message.reply_text(
+            f"✉️ <b>Current Pre-message:</b>\n{s['pre_message']}\n\n"
+            f"Send new pre-message\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
 
     return EDIT_INPUT
+
 
 async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sid = context.user_data["edit_sid"]
@@ -318,8 +351,20 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         {"$set": {field: value}}
     )
 
-    await update.message.reply_text("✅ Updated successfully")
+    await update.message.reply_text(
+        "✅ Updated successfully\n\n⬅️ Go back to /setting"
+    )
     return ConversationHandler.END
+
+
+async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    _, target = q.data.split(":")
+    if target == "setting":
+        await setting(q.message, context)
+
 
 # ================= MAIN =================
 def main():
@@ -346,7 +391,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("setting", setting))
     app.add_handler(conv)
-
+    app.add_handler(CallbackQueryHandler(back_handler, pattern="^back:"))
     app.add_handler(CallbackQueryHandler(setting_action, pattern="^(view|pause|resume|delete|edit):"))
     app.add_handler(CallbackQueryHandler(edit_select, pattern="^edit_"))
 
