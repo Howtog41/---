@@ -181,7 +181,7 @@ async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     r = schedules.insert_one(s)
-    schedule_job(s | {"_id": r.inserted_id}, context.bot, schedules)
+    schedule_job(s | {"_id": r.inserted_id}, context.bot, schedules, users)
 
     await update.message.reply_text("✅ Schedule created successfully 🎉")
     context.user_data.clear()
