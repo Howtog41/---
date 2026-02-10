@@ -42,7 +42,7 @@ async def setting(update, context, schedules):
     )
 
 
-async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE, schedules):
     q = update.callback_query
     await q.answer()
 
