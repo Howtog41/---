@@ -25,7 +25,7 @@ def restore_jobs(app, schedules):
         )
 
 
-def schedule_job(schedule, bot, schedules):
+def schedule_job(schedule, bot, schedules, users):
     h, m = map(int, schedule["time"].split(":"))
     scheduler.add_job(
         send_mcqs,
