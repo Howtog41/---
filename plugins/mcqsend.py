@@ -3,7 +3,7 @@ import pandas as pd
 from bson import ObjectId
 from datetime import datetime
 
-from plugins.auth import is_authorized   # ✅ only dependency
+from plugins.auth import is_user_allowed   # ✅ only dependency
 
 REQUIRED_COLUMNS = [
     "Question","Option A","Option B",
@@ -47,7 +47,7 @@ async def send_mcqs(schedule_id, bot, schedules):
 
     today = datetime.utcnow().date().isoformat()
 
-    if not user or not is_authorized(user):
+    if not user or not is_user_allowed(user):
         # ❌ plan expired → send message ONCE per day
         if s.get("expiry_notified_on") != today:
             try:
