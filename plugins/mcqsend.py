@@ -43,12 +43,11 @@ async def send_mcqs(schedule_id, bot, schedules, users):
         await bot.send_message(
             chat_id=s["channel_id"],
             text=(
-                "⛔ *Your Plan Has Expired*\n\n"
+                "⛔ Your Plan Has Expired\n\n"
                 "MCQ service is stopped.\n"
                 "Please purchase a plan.\n\n"
                 "📞 Contact Admin: @lkd_ak"
-            ),
-            parse_mode="Markdown"
+            )
         )
         return   # ❌ MCQs skip
 
