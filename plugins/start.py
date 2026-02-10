@@ -51,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---------- DEMO EXPIRED ----------
     kb = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("💳 Contact Admin", url=https://t.me/lkd_ak)]]
+        [[InlineKeyboardButton("💳 Contact Admin", url="https://t.me/lkd_ak")]]
     )
 
     await update.message.reply_text(
