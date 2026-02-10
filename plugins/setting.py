@@ -192,8 +192,7 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-
-     _, target = q.data.split(":")
+    _, target = q.data.split(":")
     if target == "setting":
         await setting(q.message, context)
 
