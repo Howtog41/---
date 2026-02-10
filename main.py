@@ -1,42 +1,38 @@
 import os
-from datetime import datetime
 from pymongo import MongoClient
-from telegram.ext import (
-    Application, CommandHandler,
-    MessageHandler, ConversationHandler,
-    CallbackQueryHandler, filters
-)
+from telegram.ext import Application
+
 from plugins.schedule_flow import register_schedulemcq_handlers
-from plugins.mcqsend import validate_csv
-from plugins.scheduler import start_scheduler, restore_jobs, schedule_job
 from plugins.setting import register_settings_handlers
+from plugins.auth import register_auth_handlers
+from plugins.start import register_start_handlers
+from plugins.scheduler import start_scheduler, restore_jobs
 
 
 BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 MONGO_URI = "mongodb+srv://terabox255:a8its4KrW06OhifE@cluster0.1gfjb8w.mongodb.net/?appName=Cluster0"
 
-CSV, LIMIT, TIME, CHANNEL, PREMSG = range(5)
-
-mongo = MongoClient(MONGO_URI)
-db = mongo["mcq_bot"]
-schedules = db["schedules"]
 
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
+# ---------- DB ----------
+mongo = MongoClient(MONGO_URI)
+db = mongo["mcq_bot"]
 
+schedules = db["schedules"]
+users = db["users"]
+
+
+# ---------- STARTUP ----------
 async def on_startup(app):
     app.bot_data["schedules"] = schedules
+    app.bot_data["users"] = users
+
     start_scheduler()
     restore_jobs(app, schedules)
+
     print("✅ Scheduler restored")
-
-
-async def start(update, context):
-    await update.message.reply_text(
-        "/schedulemcq – New schedule\n"
-        "/setting – Manage schedules"
-    )
 
 
 def main():
@@ -47,14 +43,12 @@ def main():
         .build()
     )
 
-    app.add_handler(CommandHandler("start", start))
-    
-    register_settings_handlers(app)
+    # 🔹 REGISTER PLUGINS
+    register_start_handlers(app)
+    register_auth_handlers(app)
     register_schedulemcq_handlers(app)
+    register_settings_handlers(app)
 
-    
-
-    
     print("🤖 BOT RUNNING")
     app.run_polling()
 
