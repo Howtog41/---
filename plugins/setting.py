@@ -21,7 +21,9 @@ EDIT_INPUT = 100
 
 
 # ================= SETTINGS LIST =================
-async def setting(update: Update, message, context: ContextTypes.DEFAULT_TYPE):
+async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
     schedules = context.application.bot_data["schedules"]
 
     data = schedules.find({"user_id": message.from_user.id})
@@ -207,9 +209,8 @@ async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def register_settings_handlers(app):
 
-    app.add_handler(
-        CommandHandler("setting", lambda u, c: setting(u.message, c))
-    )
+    CommandHandler("setting", setting)
+
     app.add_handler(
         CallbackQueryHandler(
             setting_action,
