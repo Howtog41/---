@@ -6,7 +6,7 @@ from telegram.ext import (
     ConversationHandler
 )
 
-from mcqsend import validate_csv
+from plugins.mcqsend import validate_csv
 from plugins.scheduler import schedule_job
 
 # ===== STATES =====
