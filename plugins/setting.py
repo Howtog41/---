@@ -6,10 +6,16 @@ from telegram import (
 )
 from telegram.ext import (
     ContextTypes,
-    ConversationHandler
+    CommandHandler,
+    CallbackQueryHandler,
+    ConversationHandler,
+    MessageHandler,
+    filters
 )
 
 from plugins.scheduler import schedule_job, remove_job
+
+
 
 EDIT_INPUT = 100
 
@@ -189,3 +195,37 @@ async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("❌ Edit cancelled")
     return ConversationHandler.END
+
+
+
+def register_settings_handlers(app):
+    app.add_handler(CommandHandler("setting", setting))
+
+    app.add_handler(
+        CallbackQueryHandler(
+            setting_action,
+            pattern="^(view|pause|resume|delete|edit):"
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(edit_select, pattern="^edit_")
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(back_handler, pattern="^back:")
+    )
+
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[],
+            states={
+                EDIT_INPUT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, edit_input)
+                ]
+            },
+            fallbacks=[CommandHandler("cancel", cancel_edit)]
+        )
+    )
+
+
