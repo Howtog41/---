@@ -127,26 +127,33 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ================= EDIT SELECT =================
+
 async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
-
     q = update.callback_query
     await q.answer()
 
     sid = context.user_data.get("edit_sid")
+    if not sid:
+        await q.message.reply_text("❌ No schedule selected")
+        return ConversationHandler.END
+
     s = schedules.find_one({"_id": sid})
+    if not s:
+        await q.message.reply_text("❌ Schedule not found")
+        return ConversationHandler.END
 
     if q.data == "edit_time":
         context.user_data["edit_field"] = "time"
-        text = f"⏰ Current Time: {s['time']}\nSend new time (HH:MM)"
+        text = f"⏰ Current Time: {s.get('time','Not set')}\nSend new time (HH:MM)"
 
     elif q.data == "edit_limit":
         context.user_data["edit_field"] = "daily_limit"
-        text = f"🔢 Current Daily MCQ: {s['daily_limit']}\nSend new limit"
+        text = f"🔢 Current Daily MCQ: {s.get('daily_limit',0)}\nSend new limit"
 
     elif q.data == "edit_premsg":
         context.user_data["edit_field"] = "pre_message"
-        text = f"✉️ Current Pre-message:\n{s['pre_message']}\n\nSend new text"
+        text = f"✉️ Current Pre-message:\n{s.get('pre_message','Not set')}\n\nSend new text"
 
     else:
         return ConversationHandler.END
