@@ -199,6 +199,7 @@ async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def register_settings_handlers(app):
+
     app.add_handler(CommandHandler("setting", setting))
 
     app.add_handler(
@@ -209,23 +210,21 @@ def register_settings_handlers(app):
     )
 
     app.add_handler(
-        CallbackQueryHandler(edit_select, pattern="^edit_")
-    )
-
-    app.add_handler(
         CallbackQueryHandler(back_handler, pattern="^back:")
     )
 
     app.add_handler(
         ConversationHandler(
-            entry_points=[],
+            entry_points=[
+                CallbackQueryHandler(edit_select, pattern="^edit_")
+            ],
             states={
                 EDIT_INPUT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, edit_input)
                 ]
             },
-            fallbacks=[CommandHandler("cancel", cancel_edit)]
+            fallbacks=[CommandHandler("cancel", cancel_edit)],
+            per_user=True,
+            per_chat=True
         )
     )
-
-
