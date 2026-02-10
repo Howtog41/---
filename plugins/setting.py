@@ -121,3 +121,77 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE, sch
             parse_mode="HTML"
         )
 
+# ================= EDIT =================
+async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    sid = context.user_data["edit_sid"]
+    s = schedules.find_one({"_id": sid})
+
+    context.user_data["edit_state"] = EDIT_INPUT  # 🔥 IMPORTANT
+
+    if q.data == "edit_time":
+        context.user_data["edit_field"] = "time"
+        await q.message.reply_text(
+            f"⏰ <b>Current Time:</b> {s['time']}\n\n"
+            f"Send new time (HH:MM)\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
+
+    elif q.data == "edit_limit":
+        context.user_data["edit_field"] = "daily_limit"
+        await q.message.reply_text(
+            f"🔢 <b>Current Daily MCQ:</b> {s['daily_limit']}\n\n"
+            f"Send new limit\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
+
+    elif q.data == "edit_premsg":
+        context.user_data["edit_field"] = "pre_message"
+        await q.message.reply_text(
+            f"✉️ <b>Current Pre-message:</b>\n{s['pre_message']}\n\n"
+            f"Send new pre-message\n\n⬅️ /cancel to go back",
+            parse_mode="HTML"
+        )
+
+    return EDIT_INPUT
+
+
+async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sid = context.user_data["edit_sid"]
+    field = context.user_data["edit_field"]
+    value = update.message.text
+
+    if field == "limit":
+        field = "daily_limit"
+        value = int(value)
+
+    schedules.update_one({"_id": sid}, {"$set": {field: value}})
+
+    if field == "time":
+        remove_old_job(sid)
+        s = schedules.find_one({"_id": sid})
+        schedule_job(s, context.bot)
+        msg = "⏰ Time updated & rescheduled"
+    else:
+        msg = "✅ Change will apply from next schedule"
+
+    await update.message.reply_text(msg)
+    return ConversationHandler.END
+
+
+
+async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    _, target = q.data.split(":")
+    if target == "setting":
+        await setting(q.message, context)
+
+
+async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Edit cancelled")
+    context.user_data.clear()
+    return ConversationHandler.END
