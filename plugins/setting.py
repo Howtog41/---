@@ -166,7 +166,7 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================= EDIT INPUT =================
 async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
-
+    users = context.application.bot_data["users"]
     sid = context.user_data.get("edit_sid")
     field = context.user_data.get("edit_field")
 
@@ -184,7 +184,7 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if field == "time":
         remove_job(sid)
         s = schedules.find_one({"_id": sid})
-        schedule_job(s, context.bot, schedules)
+        schedule_job(s, context.bot, schedules, users)
         msg = "⏰ Time updated & rescheduled"
     else:
         msg = "✅ Updated successfully"
