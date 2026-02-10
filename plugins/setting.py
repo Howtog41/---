@@ -21,7 +21,7 @@ EDIT_INPUT = 100
 
 
 # ================= SETTINGS LIST =================
-async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def setting(update: Update, message, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
 
     data = schedules.find({"user_id": message.from_user.id})
