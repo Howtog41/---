@@ -1,6 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pytz import timezone
-from mcqsend import send_mcqs
+from plugins.mcqsend import send_mcqs
 
 TZ = timezone("Asia/Kolkata")
 scheduler = AsyncIOScheduler(timezone=TZ)
