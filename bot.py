@@ -115,6 +115,24 @@ async def send_mcqs(schedule_id, bot):
         {"$inc": {"sent_mcq": len(batch)}}
     )
 
+# ================= SCHEDULER HELPERS =================
+def remove_old_job(sid):
+    try:
+        scheduler.remove_job(str(sid))
+    except:
+        pass
+
+def schedule_job(schedule, bot):
+    h, m = map(int, schedule["time"].split(":"))
+    scheduler.add_job(
+        send_mcqs,
+        "cron",
+        hour=h,
+        minute=m,
+        args=[str(schedule["_id"]), bot],
+        id=str(schedule["_id"]),
+        replace_existing=True
+    )
 # ================= BASIC =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -197,31 +215,15 @@ async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = []
 
     for s in data:
-        # Pre-message ka short preview (max 40 chars)
-        premsg = s.get("pre_message", "No pre-message")
-        premsg_preview = (
-            premsg[:40] + "..."
-            if len(premsg) > 40
-            else premsg
-        )
-
-        kb.append([
-            InlineKeyboardButton(
-                f"✉️ {premsg_preview}",
-                callback_data=f"view:{s['_id']}"
-            )
-        ])
-
+        txt = s["pre_message"][:40] + ("..." if len(s["pre_message"]) > 40 else "")
+        kb.append([InlineKeyboardButton(f"✉️ {txt}", callback_data=f"view:{s['_id']}")])
+        
     if not kb:
         await update.message.reply_text("❌ No schedules")
         return
 
-    await update.message.reply_text(
-        "⚙ Your schedules",
-        reply_markup=InlineKeyboardMarkup(kb)
-    )
-
-
+    await update.message.reply_text("⚙ Your schedules", reply_markup=InlineKeyboardMarkup(kb))
+    
 # ================= CALLBACK =================
 async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -345,46 +347,23 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     field = context.user_data["edit_field"]
     value = update.message.text
 
-    if field == "daily_limit":
+    if field == "limit":
+        field = "daily_limit"
         value = int(value)
 
-    # 🔎 Old schedule (before update)
-    old_schedule = schedules.find_one({"_id": sid})
+    schedules.update_one({"_id": sid}, {"$set": {field: value}})
 
-    # ✅ DB update
-    schedules.update_one(
-        {"_id": sid},
-        {"$set": {field: value}}
-    )
-
-    # 🔥 Only reschedule if TIME changed
     if field == "time":
-        remove_old_job(context, sid)
-
-        new_schedule = schedules.find_one({"_id": sid})
-        schedule_job(context, new_schedule)
-
-        msg = "⏰ Time updated & schedule resynced"
+        remove_old_job(sid)
+        s = schedules.find_one({"_id": sid})
+        schedule_job(s, context.bot)
+        msg = "⏰ Time updated & rescheduled"
     else:
-        msg = f"✅ {field.replace('_', ' ').title()} will apply from next schedule"
+        msg = "✅ Change will apply from next schedule"
 
     await update.message.reply_text(msg)
     return ConversationHandler.END
 
-def remove_old_job(context, sid):
-    jobs = context.job_queue.get_jobs_by_name(f"schedule_{sid}")
-    for job in jobs:
-        job.schedule_removal()
-        
-def schedule_job(context, schedule):
-    hour, minute = map(int, schedule["time"].split(":"))
-
-    context.job_queue.run_daily(
-        callback=send_mcqs,
-        time=datetime.time(hour, minute),
-        name=f"schedule_{schedule['_id']}",
-        data=schedule["_id"]
-    )
 
 
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
