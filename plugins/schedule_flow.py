@@ -74,7 +74,6 @@ def valid_time(t: str) -> bool:
     except:
         return False
 
-
 async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t = update.message.text.strip()
 
@@ -86,32 +85,42 @@ async def get_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["time"] = t
 
-    # show channel selector button
-    kb = [[
-        KeyboardButton(
-            "📢 Channel / Group Select",
+    kb = [
+        [KeyboardButton(
+            "📢 Select Channel",
             request_chat=KeyboardButtonRequestChat(
-                request_id=1,
+                request_id=10,
+                chat_is_channel=True,
+                bot_is_member=True
+            )
+        )],
+        [KeyboardButton(
+            "👥 Select Group",
+            request_chat=KeyboardButtonRequestChat(
+                request_id=20,
                 chat_is_channel=False,
                 bot_is_member=True
             )
-        )
-    ]]
+        )]
+    ]
 
     await update.message.reply_text(
-        "👇 Channel ya Group select karo\n\n⚠️ Bot waha member/admin hona chahiye",
+        "👇 Channel ya Group select karo",
         reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True, one_time_keyboard=True)
     )
     return CHANNEL
 
 
+
 # ================= CHANNEL =================
+
 async def receive_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_shared = update.message.chat_shared
+    msg = update.message
+    chat_shared = msg.chat_shared
     bot = context.bot
 
     if not chat_shared:
-        await update.message.reply_text("❌ Button se hi channel/group select karo")
+        await msg.reply_text("❌ Button se hi channel ya group select karo")
         return CHANNEL
 
     chat_id = chat_shared.chat_id
@@ -121,7 +130,7 @@ async def receive_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if member.status not in ("administrator", "member"):
             raise Exception
     except:
-        await update.message.reply_text(
+        await msg.reply_text(
             "❌ Bot us channel/group me member ya admin nahi hai\n\n"
             "👉 Pehle bot add karo, fir dubara select karo"
         )
@@ -129,11 +138,14 @@ async def receive_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat = await bot.get_chat(chat_id)
 
+    # save
     context.user_data["channel"] = chat_id
     context.user_data["channel_title"] = chat.title
+    context.user_data["channel_type"] = chat.type  # channel / group / supergroup
 
-    await update.message.reply_text(
-        f"✅ Selected: {chat.title}\n\n✉️ Pre-message bhejo (max 60 words)",
+    await msg.reply_text(
+        f"✅ Selected {chat.type.upper()}: {chat.title}\n\n"
+        "✉️ Pre-message bhejo (max 60 words)",
         reply_markup=ReplyKeyboardMarkup([[]], remove_keyboard=True)
     )
     return PREMSG
