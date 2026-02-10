@@ -343,26 +343,34 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sid = context.user_data["edit_sid"]
     field = context.user_data["edit_field"]
-    if not sid or not field:
-        await update.message.reply_text("❌ No edit in progress")
-        return ConversationHandler.END
-
     value = update.message.text
+
     if field == "daily_limit":
-        if not value.isdigit():
-            await update.message.reply_text("❌ Please send a number")
-            return EDIT_INPUT
         value = int(value)
 
+    # 🔎 Old schedule (before update)
+    old_schedule = schedules.find_one({"_id": sid})
+
+    # ✅ DB update
     schedules.update_one(
         {"_id": sid},
         {"$set": {field: value}}
     )
 
-    await update.message.reply_text(
-        "✅ Updated successfully\n\n⬅️ Go back to /setting"
-    )
+    # 🔥 Only reschedule if TIME changed
+    if field == "time":
+        remove_old_job(context, sid)
+
+        new_schedule = schedules.find_one({"_id": sid})
+        schedule_job(context, new_schedule)
+
+        msg = "⏰ Time updated & schedule resynced"
+    else:
+        msg = f"✅ {field.replace('_', ' ').title()} will apply from next schedule"
+
+    await update.message.reply_text(msg)
     return ConversationHandler.END
+
 
 
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
