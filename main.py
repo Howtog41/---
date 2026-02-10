@@ -13,7 +13,8 @@ from plugins.schedule_flow import (
 )
 from plugins.mcqsend import validate_csv
 from plugins.scheduler import start_scheduler, restore_jobs, schedule_job
-from plugins.setting import setting, setting_action
+from plugins.settings_plugin import register_settings_handlers
+
 
 BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 MONGO_URI = "mongodb+srv://terabox255:a8its4KrW06OhifE@cluster0.1gfjb8w.mongodb.net/?appName=Cluster0"
@@ -51,16 +52,9 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler(
-        "setting",
-        lambda u, c: setting(u, c, schedules)
-    ))
-    app.add_handler(
-        CallbackQueryHandler(
-            lambda u, c: setting_action(u, c, schedules),
-            pattern="^(pause|resume|delete|view):"
-        )
-    )
+    
+    register_settings_handlers(app)
+
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("schedulemcq", schedulemcq)],
