@@ -13,7 +13,7 @@ from plugins.schedule_flow import (
 )
 from plugins.mcqsend import validate_csv
 from plugins.scheduler import start_scheduler, restore_jobs, schedule_job
-from plugins.settings_plugin import register_settings_handlers
+from plugins.settings import register_settings_handlers
 
 
 BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
