@@ -15,38 +15,39 @@ from telegram.ext import (
 
 from plugins.scheduler import schedule_job, remove_job
 
-
-
 EDIT_INPUT = 100
 
 
 # ================= SETTINGS LIST =================
 async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    if not user:
+        return
 
     schedules = context.application.bot_data["schedules"]
 
-    data = schedules.find({"user_id": message.from_user.id})
+    data = schedules.find({"user_id": user.id})
     kb = []
 
     for s in data:
-        txt = s["pre_message"][:40]
-        if len(s["pre_message"]) > 40:
+        txt = s.get("pre_message", "")[:40]
+        if len(s.get("pre_message", "")) > 40:
             txt += "..."
         kb.append([
             InlineKeyboardButton(
-                f"✉️ {txt}",
+                f"✉️ {txt or 'No pre-message'}",
                 callback_data=f"view:{s['_id']}"
             )
         ])
 
     if not kb:
-        await update.message.reply_text("❌ No schedules")
+        await update.message.reply_text("❌ No schedules found")
         return
 
     await update.message.reply_text(
-        "⚙ Your schedules",
-        reply_markup=InlineKeyboardMarkup(kb)
+        "⚙️ <b>Your schedules</b>",
+        reply_markup=InlineKeyboardMarkup(kb),
+        parse_mode="HTML"
     )
 
 
@@ -60,10 +61,13 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action, sid = q.data.split(":")
     sid = ObjectId(sid)
 
+    s = schedules.find_one({"_id": sid})
+    if not s:
+        await q.edit_message_text("❌ Schedule not found")
+        return
+
     # ---------- VIEW ----------
     if action == "view":
-        s = schedules.find_one({"_id": sid})
-
         premsg = s.get("pre_message", "No pre-message")
         title = premsg[:60] + ("..." if len(premsg) > 60 else "")
 
@@ -73,8 +77,7 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⏸ Pause" if s["status"] == "active" else "▶ Resume",
                 callback_data=f"{'pause' if s['status']=='active' else 'resume'}:{sid}"
             )],
-            [InlineKeyboardButton("❌ Delete", callback_data=f"delete:{sid}")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back:setting")]
+            [InlineKeyboardButton("❌ Delete", callback_data=f"delete:{sid}")]
         ]
 
         await q.edit_message_text(
@@ -95,7 +98,6 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---------- RESUME ----------
     elif action == "resume":
-        s = schedules.find_one({"_id": sid})
         schedules.update_one({"_id": sid}, {"$set": {"status": "active"}})
         schedule_job(s, context.bot, schedules)
         await q.edit_message_text("▶ Schedule resumed")
@@ -108,14 +110,12 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---------- EDIT MENU ----------
     elif action == "edit":
-        s = schedules.find_one({"_id": sid})
         context.user_data["edit_sid"] = sid
 
         kb = [
             [InlineKeyboardButton("⏰ Edit Time", callback_data="edit_time")],
             [InlineKeyboardButton("🔢 Edit Daily MCQ", callback_data="edit_limit")],
-            [InlineKeyboardButton("✉️ Edit Pre-message", callback_data="edit_premsg")],
-            [InlineKeyboardButton("⬅️ Back", callback_data=f"view:{sid}")]
+            [InlineKeyboardButton("✉️ Edit Pre-message", callback_data="edit_premsg")]
         ]
 
         await q.edit_message_text(
@@ -129,7 +129,6 @@ async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ================= EDIT SELECT =================
-
 async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
     q = update.callback_query
@@ -137,7 +136,7 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     sid = context.user_data.get("edit_sid")
     if not sid:
-        await q.message.reply_text("❌ No schedule selected")
+        await q.message.reply_text("❌ Please select schedule again using /setting")
         return ConversationHandler.END
 
     s = schedules.find_one({"_id": sid})
@@ -147,15 +146,15 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if q.data == "edit_time":
         context.user_data["edit_field"] = "time"
-        text = f"⏰ Current Time: {s.get('time','Not set')}\nSend new time (HH:MM)"
+        text = f"⏰ Current Time: {s['time']}\nSend new time (HH:MM)"
 
     elif q.data == "edit_limit":
         context.user_data["edit_field"] = "daily_limit"
-        text = f"🔢 Current Daily MCQ: {s.get('daily_limit',0)}\nSend new limit"
+        text = f"🔢 Current Daily MCQ: {s['daily_limit']}\nSend new limit"
 
     elif q.data == "edit_premsg":
         context.user_data["edit_field"] = "pre_message"
-        text = f"✉️ Current Pre-message:\n{s.get('pre_message','Not set')}\n\nSend new text"
+        text = f"✉️ Current Pre-message:\n{s['pre_message']}\n\nSend new text"
 
     else:
         return ConversationHandler.END
@@ -168,8 +167,13 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
 
-    sid = context.user_data["edit_sid"]
-    field = context.user_data["edit_field"]
+    sid = context.user_data.get("edit_sid")
+    field = context.user_data.get("edit_field")
+
+    if not sid or not field:
+        await update.message.reply_text("❌ Edit expired, use /setting again")
+        return ConversationHandler.END
+
     value = update.message.text
 
     if field == "daily_limit":
@@ -183,20 +187,10 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         schedule_job(s, context.bot, schedules)
         msg = "⏰ Time updated & rescheduled"
     else:
-        msg = "✅ Change will apply from next schedule"
+        msg = "✅ Updated successfully"
 
     await update.message.reply_text(msg)
-    context.user_data.clear()
     return ConversationHandler.END
-
-
-# ================= BACK =================
-async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    _, target = q.data.split(":")
-    if target == "setting":
-        await setting(q.message, context)
 
 
 # ================= CANCEL =================
@@ -206,10 +200,9 @@ async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-
+# ================= REGISTER =================
 def register_settings_handlers(app):
-
-    CommandHandler("setting", setting)
+    app.add_handler(CommandHandler("setting", setting))
 
     app.add_handler(
         CallbackQueryHandler(
@@ -217,9 +210,7 @@ def register_settings_handlers(app):
             pattern="^(view|pause|resume|delete|edit):"
         )
     )
-    app.add_handler(
-        CallbackQueryHandler(back_handler, pattern="^back:")
-    )
+
     app.add_handler(
         ConversationHandler(
             entry_points=[
