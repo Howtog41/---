@@ -6,7 +6,11 @@ from telegram.ext import (
     MessageHandler, ConversationHandler,
     CallbackQueryHandler, filters
 )
-
+from plugins.schedule_flow import (
+    schedulemcq, get_csv, get_limit,
+    get_time, get_channel, get_premsg,
+    CSV, LIMIT, TIME, CHANNEL, PREMSG
+)
 from plugins.mcqsend import validate_csv
 from plugins.scheduler import start_scheduler, restore_jobs, schedule_job
 from plugins.setting import setting, setting_action
@@ -25,6 +29,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 
 async def on_startup(app):
+    app.bot_data["schedules"] = schedules
     start_scheduler()
     restore_jobs(app, schedules)
     print("✅ Scheduler restored")
@@ -57,6 +62,22 @@ def main():
         )
     )
 
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("schedulemcq", schedulemcq)],
+        states={
+            CSV: [MessageHandler(filters.Document.ALL, get_csv)],
+            LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_limit)],
+            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_time)],
+            CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_channel)],
+            PREMSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_premsg)],
+        },
+        fallbacks=[]
+    )
+
+    app.add_handler(conv)
+
+
+    
     print("🤖 BOT RUNNING")
     app.run_polling()
 
