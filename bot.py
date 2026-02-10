@@ -81,8 +81,9 @@ async def send_mcqs(schedule_id, bot):
         return
 
     df = pd.read_csv(s["csv_path"])
-    sent = s["sent_mcq"]
-    limit = s["daily_limit"]
+    sent = int(s.get("sent_mcq", 0))
+    limit = int(s.get("daily_limit", 1))
+
 
     if sent >= len(df):
         return
