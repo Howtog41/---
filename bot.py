@@ -197,9 +197,17 @@ async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = []
 
     for s in data:
+        # Pre-message ka short preview (max 40 chars)
+        premsg = s.get("pre_message", "No pre-message")
+        premsg_preview = (
+            premsg[:40] + "..."
+            if len(premsg) > 40
+            else premsg
+        )
+
         kb.append([
             InlineKeyboardButton(
-                os.path.basename(s["csv_path"]),
+                f"✉️ {premsg_preview}",
                 callback_data=f"view:{s['_id']}"
             )
         ])
@@ -212,6 +220,7 @@ async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚙ Your schedules",
         reply_markup=InlineKeyboardMarkup(kb)
     )
+
 
 # ================= CALLBACK =================
 async def setting_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
