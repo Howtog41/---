@@ -4,7 +4,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler
 
-from plugins.auth import ensure_user, is_authorized
+from plugins.auth import ensure_user, is_user_allowed
 
 
 ADMIN_LINK = "https://t.me/lkd_ak"
@@ -20,7 +20,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.utcnow()
 
     # ---------- DEMO ACTIVE ----------
-    if is_authorized(user):
+    if is_user_allowed(user):
         if user.get("is_demo", False):
             expires = user["expires_on"].strftime("%d %b %Y, %H:%M")
 
