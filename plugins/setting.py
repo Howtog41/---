@@ -193,7 +193,8 @@ async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    if q.data == "back:setting":
+     _, target = q.data.split(":")
+    if target == "setting":
         await setting(q.message, context)
 
 
@@ -207,19 +208,18 @@ async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def register_settings_handlers(app):
 
-    app.add_handler(CommandHandler("setting", setting))
-
+    app.add_handler(
+        CommandHandler("setting", lambda u, c: setting(u.message, c))
+    )
     app.add_handler(
         CallbackQueryHandler(
             setting_action,
             pattern="^(view|pause|resume|delete|edit):"
         )
     )
-
     app.add_handler(
         CallbackQueryHandler(back_handler, pattern="^back:")
     )
-
     app.add_handler(
         ConversationHandler(
             entry_points=[
