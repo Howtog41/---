@@ -4,6 +4,7 @@ from telegram import (
     Update,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     KeyboardButtonRequestChat
 )
 from telegram.ext import (
@@ -146,7 +147,7 @@ async def receive_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(
         f"✅ Selected {chat.type.upper()}: {chat.title}\n\n"
         "✉️ Pre-message bhejo (max 60 words)",
-        reply_markup=ReplyKeyboardMarkup([[]], remove_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup()
     )
     return PREMSG
 
