@@ -30,32 +30,29 @@ def validate_csv(path):
 
 # ================= SEND MCQS =================
 
-async def send_mcqs(schedule_id, app, schedules):
-    
+
+async def send_mcqs(schedule_id, bot, schedules, users):
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
 
     # 🔐 AUTH CHECK
-    bot = app.bot
-    users = app.bot_data["users"]
     user = users.find_one({"user_id": s["user_id"]})
 
     if not is_user_allowed(user):
-        # ❌ PLAN EXPIRED → SIRF 1 MESSAGE
         await bot.send_message(
             chat_id=s["channel_id"],
             text=(
                 "⛔ *Your Plan Has Expired*\n\n"
-                "MCQ service temporarily stopped.\n"
-                "Please purchase a plan to continue.\n\n"
+                "MCQ service is stopped.\n"
+                "Please purchase a plan.\n\n"
                 "📞 Contact Admin: @lkd_ak"
             ),
             parse_mode="Markdown"
         )
-        return   # ⛔ MCQ SEND NAHI HONGE
+        return   # ❌ MCQs skip
 
-    # ✅ ALLOWED → MCQ SEND CONTINUE
+    # ✅ AUTHORIZED → MCQ CONTINUE
     df = pd.read_csv(s["csv_path"])
     sent = int(s.get("sent_mcq", 0))
     limit = int(s.get("daily_limit", 1))
@@ -75,7 +72,7 @@ async def send_mcqs(schedule_id, app, schedules):
             row["Option C"],
             row["Option D"]
         ]
-        correct = ["A","B","C","D"].index(row["Answer"])
+        correct = ["A", "B", "C", "D"].index(row["Answer"])
 
         await bot.send_poll(
             chat_id=s["channel_id"],
