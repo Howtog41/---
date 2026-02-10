@@ -311,6 +311,8 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sid = context.user_data["edit_sid"]
     s = schedules.find_one({"_id": sid})
 
+    context.user_data["edit_state"] = EDIT_INPUT  # 🔥 IMPORTANT
+
     if q.data == "edit_time":
         context.user_data["edit_field"] = "time"
         await q.message.reply_text(
@@ -341,9 +343,15 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sid = context.user_data["edit_sid"]
     field = context.user_data["edit_field"]
+    if not sid or not field:
+        await update.message.reply_text("❌ No edit in progress")
+        return ConversationHandler.END
 
     value = update.message.text
     if field == "daily_limit":
+        if not value.isdigit():
+            await update.message.reply_text("❌ Please send a number")
+            return EDIT_INPUT
         value = int(value)
 
     schedules.update_one(
@@ -364,6 +372,12 @@ async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, target = q.data.split(":")
     if target == "setting":
         await setting(q.message, context)
+
+
+async def cancel_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Edit cancelled")
+    context.user_data.clear()
+    return ConversationHandler.END
 
 
 # ================= MAIN =================
@@ -387,13 +401,29 @@ def main():
         },
         fallbacks=[]
     )
+    edit_conv = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(edit_select, pattern="^edit_")
+        ],
+        states={
+            EDIT_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_input)
+            ]
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel_edit)
+        ],
+        per_user=True,
+        per_chat=True
+    )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("setting", setting))
     app.add_handler(conv)
+    app.add_handler(edit_conv)
     app.add_handler(CallbackQueryHandler(back_handler, pattern="^back:"))
     app.add_handler(CallbackQueryHandler(setting_action, pattern="^(view|pause|resume|delete|edit):"))
-    app.add_handler(CallbackQueryHandler(edit_select, pattern="^edit_"))
+    
 
     print("🤖 BOT RUNNING")
     app.run_polling()
