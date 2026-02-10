@@ -24,7 +24,7 @@ EDIT_INPUT = 100
 async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedules = context.application.bot_data["schedules"]
 
-    data = schedules.find({"user_id": update.effective_user.id})
+    data = schedules.find({"user_id": message.from_user.id})
     kb = []
 
     for s in data:
