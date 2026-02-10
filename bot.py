@@ -380,7 +380,7 @@ def schedule_job(context, schedule):
     hour, minute = map(int, schedule["time"].split(":"))
 
     context.job_queue.run_daily(
-        callback=send_mcq_job,
+        callback=send_mcqs,
         time=datetime.time(hour, minute),
         name=f"schedule_{schedule['_id']}",
         data=schedule["_id"]
