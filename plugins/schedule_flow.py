@@ -153,7 +153,8 @@ async def receive_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ================= PRE MESSAGE =================
-async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE, users):
+async def get_premsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = context.application.bot_data["users"]
     text = update.message.text.strip()
     words = text.split()
 
