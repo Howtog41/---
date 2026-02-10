@@ -371,6 +371,10 @@ async def edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg)
     return ConversationHandler.END
 
+def remove_old_job(context, sid):
+    jobs = context.job_queue.get_jobs_by_name(f"schedule_{sid}")
+    for job in jobs:
+        job.schedule_removal()
 
 
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
