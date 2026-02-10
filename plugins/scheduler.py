@@ -19,7 +19,7 @@ def restore_jobs(app, schedules):
             "cron",
             hour=h,
             minute=m,
-            args=[str(s["_id"]), app.bot, schedules, app.bot_data["users"]],  # ✅ users added
+            args=[str(s["_id"]), app.bot, schedules],
             id=str(s["_id"]),
             replace_existing=True
         )
@@ -32,7 +32,7 @@ def schedule_job(schedule, bot, schedules):
         "cron",
         hour=h,
         minute=m,
-        args=[str(schedule["_id"]), bot, schedules, bot.application.bot_data["users"]],  # ✅ users added
+        args=[str(schedule["_id"]), bot, schedules],
         id=str(schedule["_id"]),
         replace_existing=True
     )
