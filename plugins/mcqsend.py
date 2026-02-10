@@ -2,7 +2,7 @@ import asyncio
 import pandas as pd
 from bson import ObjectId
 from plugins.auth import is_user_allowed
-from handlers.set_description import get_description_for_chat_id, DEFAULT_DESCRIPTION
+from plugins.set_description import get_description_for_chat_id, DEFAULT_DESCRIPTION
 
 REQUIRED_COLUMNS = [
     "Question","Option A","Option B",
