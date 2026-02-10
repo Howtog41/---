@@ -30,13 +30,15 @@ def validate_csv(path):
 
 # ================= SEND MCQS =================
 
-async def send_mcqs(schedule_id, bot, schedules):
+async def send_mcqs(schedule_id, app, schedules):
+    
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
 
     # 🔐 AUTH CHECK
-    users = bot.application.bot_data["users"]
+    bot = app.bot
+    users = app.bot_data["users"]
     user = users.find_one({"user_id": s["user_id"]})
 
     if not is_user_allowed(user):
