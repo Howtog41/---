@@ -19,7 +19,7 @@ def restore_jobs(app, schedules):
             "cron",
             hour=h,
             minute=m,
-            args=[str(s["_id"]), app.bot, schedules],
+            args=[str(s["_id"]), app, schedules],
             id=str(s["_id"]),
             replace_existing=True
         )
