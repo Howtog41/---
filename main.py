@@ -7,9 +7,9 @@ from telegram.ext import (
     CallbackQueryHandler, filters
 )
 
-from mcqsend import validate_csv
+from plugins.mcqsend import validate_csv
 from plugins.scheduler import start_scheduler, restore_jobs, schedule_job
-from setting import setting, setting_action
+from plugins.setting import setting, setting_action
 
 BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 MONGO_URI = "mongodb+srv://terabox255:a8its4KrW06OhifE@cluster0.1gfjb8w.mongodb.net/?appName=Cluster0"
