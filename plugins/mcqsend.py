@@ -36,19 +36,17 @@ def validate_csv(path):
 
 
 # ================= SEND MCQS =================
-async def send_mcqs(schedule_id, bot, schedules):
+async def send_mcqs(schedule_id, bot, schedules, users):
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
 
-    # 🔐 AUTH CHECK (CORE LOGIC)
-    users = bot.application.bot_data["users"]
-    user = users.find_one({"user_id": s["user_id"]})
-
     today = datetime.utcnow().date().isoformat()
 
-    if not user or not is_user_allowed(user):
-        # ❌ plan expired → send message ONCE per day
+    user = users.find_one({"user_id": s["user_id"]})
+
+    # AUTH check
+    if not user or not user.get("authorized", False):
         if s.get("expiry_notified_on") != today:
             try:
                 await bot.send_message(
@@ -65,8 +63,7 @@ async def send_mcqs(schedule_id, bot, schedules):
                 {"_id": s["_id"]},
                 {"$set": {"expiry_notified_on": today}}
             )
-
-        return  # ❌ MCQs STOP HERE
+        return
 
     # ✅ PLAN ACTIVE → clear expiry flag (optional but clean)
     if s.get("expiry_notified_on"):
