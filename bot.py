@@ -375,6 +375,16 @@ def remove_old_job(context, sid):
     jobs = context.job_queue.get_jobs_by_name(f"schedule_{sid}")
     for job in jobs:
         job.schedule_removal()
+        
+def schedule_job(context, schedule):
+    hour, minute = map(int, schedule["time"].split(":"))
+
+    context.job_queue.run_daily(
+        callback=send_mcq_job,
+        time=datetime.time(hour, minute),
+        name=f"schedule_{schedule['_id']}",
+        data=schedule["_id"]
+    )
 
 
 async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
