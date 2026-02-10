@@ -1,9 +1,7 @@
 import asyncio
 import pandas as pd
 from bson import ObjectId
-from datetime import datetime
-
-from plugins.auth import is_user_allowed   # ✅ only dependency
+from plugins.auth import is_user_allowed
 
 REQUIRED_COLUMNS = [
     "Question","Option A","Option B",
@@ -30,49 +28,32 @@ def validate_csv(path):
     return True, df
 
 
-
-
-
-
-
 # ================= SEND MCQS =================
-async def send_mcqs(schedule_id, bot, schedules, users):
+
+async def send_mcqs(schedule_id, bot, schedules):
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
 
-    today = datetime.utcnow().date().isoformat()
-
+    # 🔐 AUTH CHECK
+    users = bot.application.bot_data["users"]
     user = users.find_one({"user_id": s["user_id"]})
 
-    # AUTH check
-    if not user or not user.get("authorized", False):
-        if s.get("expiry_notified_on") != today:
-            try:
-                await bot.send_message(
-                    s["channel_id"],
-                    "⛔ <b>Your plan has expired</b>\n\n"
-                    "📦 To continue receiving MCQs,\n"
-                    "👉 please contact admin",
-                    parse_mode="HTML"
-                )
-            except:
-                pass
-
-            schedules.update_one(
-                {"_id": s["_id"]},
-                {"$set": {"expiry_notified_on": today}}
-            )
-        return
-
-    # ✅ PLAN ACTIVE → clear expiry flag (optional but clean)
-    if s.get("expiry_notified_on"):
-        schedules.update_one(
-            {"_id": s["_id"]},
-            {"$unset": {"expiry_notified_on": ""}}
+    if not is_user_allowed(user):
+        # ❌ PLAN EXPIRED → SIRF 1 MESSAGE
+        await bot.send_message(
+            chat_id=s["channel_id"],
+            text=(
+                "⛔ *Your Plan Has Expired*\n\n"
+                "MCQ service temporarily stopped.\n"
+                "Please purchase a plan to continue.\n\n"
+                "📞 Contact Admin: @lkd_ak"
+            ),
+            parse_mode="Markdown"
         )
+        return   # ⛔ MCQ SEND NAHI HONGE
 
-    # ================= NORMAL MCQ FLOW =================
+    # ✅ ALLOWED → MCQ SEND CONTINUE
     df = pd.read_csv(s["csv_path"])
     sent = int(s.get("sent_mcq", 0))
     limit = int(s.get("daily_limit", 1))
@@ -82,8 +63,8 @@ async def send_mcqs(schedule_id, bot, schedules, users):
 
     batch = df.iloc[sent: sent + limit]
 
-    # pre-message
-    await bot.send_message(s["channel_id"], s["pre_message"])
+    if s.get("pre_message"):
+        await bot.send_message(s["channel_id"], s["pre_message"])
 
     for _, row in batch.iterrows():
         options = [
@@ -108,8 +89,3 @@ async def send_mcqs(schedule_id, bot, schedules, users):
         {"_id": s["_id"]},
         {"$inc": {"sent_mcq": len(batch)}}
     )
-
-
-
-
-
