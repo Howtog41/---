@@ -7,7 +7,7 @@ from plugins.setting import register_settings_handlers
 from plugins.auth import register_auth_handlers
 from plugins.start import register_start_handlers
 from plugins.scheduler import start_scheduler, restore_jobs
-
+from handlers.set_description import get_set_description_handler
 
 BOT_TOKEN = "8151017957:AAGUXHkgWeh1Bp3E358A8YZwtfEjer6Qpsk"
 MONGO_URI = "mongodb+srv://terabox255:a8its4KrW06OhifE@cluster0.1gfjb8w.mongodb.net/?appName=Cluster0"
@@ -42,7 +42,7 @@ def main():
         .post_init(on_startup)
         .build()
     )
-
+    app.add_handler(get_set_description_handler())
     # 🔹 REGISTER PLUGINS
     register_start_handlers(app)
     register_auth_handlers(app)
