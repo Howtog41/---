@@ -32,7 +32,7 @@ def validate_csv(path):
 # ================= SEND MCQS =================
 
 
-async def send_mcqs(schedule_id, bot, context, schedules, users):
+async def send_mcqs(schedule_id, bot, schedules, users):
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
