@@ -22,6 +22,7 @@ db = mongo["mcq_bot"]
 
 schedules = db["schedules"]
 users = db["users"]
+descriptions = db["channel_descriptions"]
 
 
 # ---------- STARTUP ----------
@@ -42,6 +43,7 @@ def main():
         .post_init(on_startup)
         .build()
     )
+    app.bot_data["descriptions"] = descriptions
     app.add_handler(get_set_description_handler())
     # 🔹 REGISTER PLUGINS
     register_start_handlers(app)
