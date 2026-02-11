@@ -19,42 +19,46 @@ def _get_desc_key_for_global(update: Update):
 
 
 def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if STORAGE_MODE == "user":
-        return context.user_data.get("channel_description")
-    elif STORAGE_MODE == "chat":
-        return context.chat_data.get("channel_description")
-    else:
-        chat_id = _get_desc_key_for_global(update)
-        descriptions = context.bot_data.setdefault("channel_descriptions", {})
-        return descriptions.get(chat_id)
+    chat_id = update.effective_chat.id
+    descriptions = context.bot_data["descriptions"]
+
+    data = descriptions.find_one({"chat_id": chat_id})
+    if data:
+        return data.get("description")
+
+    return None
+
 
 
 # 🔹 New helper to get description directly by chat_id (used in poll sending)
 def get_description_for_chat_id(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    descriptions = context.bot_data.setdefault("channel_descriptions", {})
-    return descriptions.get(chat_id)
+    descriptions = context.bot_data["descriptions"]
+    data = descriptions.find_one({"chat_id": chat_id})
+
+    if data:
+        return data.get("description")
+
+    return None
 
 
 def set_description(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    if STORAGE_MODE == "user":
-        context.user_data["channel_description"] = text
-    elif STORAGE_MODE == "chat":
-        context.chat_data["channel_description"] = text
-    else:
-        chat_id = _get_desc_key_for_global(update)
-        descriptions = context.bot_data.setdefault("channel_descriptions", {})
-        descriptions[chat_id] = text
+    chat_id = update.effective_chat.id
+    descriptions = context.bot_data["descriptions"]
+
+    descriptions.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"description": text}},
+        upsert=True
+    )
+
 
 
 def reset_to_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if STORAGE_MODE == "user":
-        context.user_data.pop("channel_description", None)
-    elif STORAGE_MODE == "chat":
-        context.chat_data.pop("channel_description", None)
-    else:
-        chat_id = _get_desc_key_for_global(update)
-        descriptions = context.bot_data.setdefault("channel_descriptions", {})
-        descriptions.pop(chat_id, None)
+    chat_id = update.effective_chat.id
+    descriptions = context.bot_data["descriptions"]
+
+    descriptions.delete_one({"chat_id": chat_id})
+
 
 
 async def set_channel_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
