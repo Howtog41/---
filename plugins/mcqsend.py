@@ -58,7 +58,7 @@ async def send_mcqs(schedule_id, bot, schedules, users):
     MAX_DESC_LEN = 200
 
     # 🏷️ Channel description from bot_data
-    global_desc = get_description_for_chat_id(bot.context, s["channel_id"])
+    global_desc = get_description_for_chat_id(users, s["channel_id"])
     if not global_desc:
         global_desc = DEFAULT_DESCRIPTION
 
