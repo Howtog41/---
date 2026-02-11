@@ -30,9 +30,17 @@ def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # 🔹 New helper to get description directly by chat_id (used in poll sending)
-def get_description_for_chat_id(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    descriptions = context.bot_data.setdefault("channel_descriptions", {})
-    return descriptions.get(chat_id)
+def get_description_for_chat_id(users, chat_id):
+    u = users.find_one({"channels.channel_id": chat_id})
+    if not u:
+        return ""
+
+    for ch in u.get("channels", []):
+        if ch["channel_id"] == chat_id:
+            return ch.get("description", "")
+
+    return ""
+
 
 
 def set_description(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
