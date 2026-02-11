@@ -32,7 +32,7 @@ def validate_csv(path):
 # ================= SEND MCQS =================
 
 
-async def send_mcqs(schedule_id, bot, context, schedules, users):
+async def send_mcqs(schedule_id, bot, schedules, users):
     s = schedules.find_one({"_id": ObjectId(schedule_id)})
     if not s or s["status"] != "active":
         return
@@ -57,12 +57,8 @@ async def send_mcqs(schedule_id, bot, context, schedules, users):
     MAX_OPT_LEN = 100
     MAX_DESC_LEN = 200
 
-   
-    # 🏷️ Channel description from bot_data
-    global_desc = get_description_for_chat_id(bot.context, s["channel_id"])
-    if not global_desc:
-        global_desc = DEFAULT_DESCRIPTION
-
+    # 🏷️ Optional tag / description
+    global_desc = s.get("tag", "").strip()
 
     # ================= CSV LOAD ===================
     df = pd.read_csv(s["csv_path"])
