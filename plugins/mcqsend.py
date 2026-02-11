@@ -57,11 +57,10 @@ async def send_mcqs(schedule_id, bot, schedules, users):
     MAX_OPT_LEN = 100
     MAX_DESC_LEN = 200
 
-    # 🏷️ Channel description from bot_data
+    # 🏷️ MongoDB se Channel Description
     global_desc = get_description_for_chat_id(users, s["channel_id"])
     if not global_desc:
         global_desc = DEFAULT_DESCRIPTION
-
 
     # ================= CSV LOAD ===================
     df = pd.read_csv(s["csv_path"])
@@ -80,42 +79,37 @@ async def send_mcqs(schedule_id, bot, schedules, users):
     # ================= MCQ FLOW ===================
     for _, row in batch.iterrows():
         try:
-            # 🧹 SAFE READ
             question = str(row.get("Question", "")).strip()
+
             options = [
                 str(row.get("Option A", "")).strip(),
                 str(row.get("Option B", "")).strip(),
                 str(row.get("Option C", "")).strip(),
                 str(row.get("Option D", "")).strip(),
             ]
+
             answer = str(row.get("Answer", "")).strip().upper()
-            description = str(row.get("Description", "")).strip()
+
+            raw_description = str(row.get("Description", "")).strip()
+            description = "" if raw_description.lower() == "nan" else raw_description
 
             correct_option_id = ANSWER_MAP.get(answer)
 
-            # ❌ MISSING DATA CHECK
-            missing = []
-            if not question:
-                missing.append("Question")
-            for i, opt in enumerate(options):
-                if not opt or opt.lower() == "nan":
-                    missing.append(f"Option {chr(65+i)}")
-            if correct_option_id is None:
-                missing.append("Answer")
-
-            if missing:
-                print("Skipped MCQ (missing):", missing)
+            # ❌ Validation
+            if (
+                not question
+                or correct_option_id is None
+                or any(not opt or opt.lower() == "nan" for opt in options)
+                or len(set(options)) != 4
+            ):
+                print("Skipped invalid MCQ")
                 continue
 
-            # ❌ DUPLICATE OPTIONS
-            if len(set(options)) != 4:
-                print("Skipped MCQ (duplicate options)")
-                continue
+            # 🧠 DESCRIPTION + CHANNEL TAG MERGE
+            if global_desc not in description:
+                description = f"{description} {global_desc}".strip() if description else global_desc
 
-            # 🧠 DESCRIPTION + TAG MERGE
-            if global_desc and global_desc not in description:
-                description = f"{description} {global_desc}" if description else global_desc
-
+            # Trim description safely
             if len(description) > MAX_DESC_LEN:
                 description = description[:MAX_DESC_LEN].rsplit(" ", 1)[0] + "..."
 
@@ -124,7 +118,6 @@ async def send_mcqs(schedule_id, bot, schedules, users):
                 len(question) <= MAX_Q_LEN and
                 all(len(opt) <= MAX_OPT_LEN for opt in options)
             ):
-                # ✅ NORMAL QUIZ
                 await bot.send_poll(
                     chat_id=s["channel_id"],
                     question=question[:MAX_Q_LEN],
@@ -135,7 +128,6 @@ async def send_mcqs(schedule_id, bot, schedules, users):
                     is_anonymous=True
                 )
             else:
-                # 🔁 FALLBACK MODE (LONG TEXT)
                 await bot.send_message(
                     chat_id=s["channel_id"],
                     text=(
