@@ -5,8 +5,6 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters
 )
 
-from database import users_collection  # 🔥 Mongo import
-
 logger = logging.getLogger(__name__)
 
 SET_CHOOSE, WAIT_DESCRIPTION = range(2)
@@ -36,10 +34,12 @@ def get_description_for_chat_id(users, chat_id: int):
 # =====================================================
 
 def set_description(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    users = context.bot_data["users_collection"]
+
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
 
-    users_collection.update_one(
+    users.update_one(
         {
             "user_id": user_id,
             "channels.channel_id": chat_id
@@ -57,10 +57,12 @@ def set_description(update: Update, context: ContextTypes.DEFAULT_TYPE, text: st
 # =====================================================
 
 def reset_to_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = context.bot_data["users_collection"]
+
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
 
-    users_collection.update_one(
+    users.update_one(
         {
             "user_id": user_id,
             "channels.channel_id": chat_id
@@ -78,13 +80,15 @@ def reset_to_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================================
 
 async def set_channel_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = context.bot_data["users_collection"]
     chat_id = update.effective_chat.id
 
-    desc = get_description_for_chat_id(users_collection, chat_id)
+    desc = get_description_for_chat_id(users, chat_id)
 
-    buttons = [InlineKeyboardButton("✏️ Edit Description", callback_data="edit_description")]
+    buttons = [
+        InlineKeyboardButton("✏️ Edit Description", callback_data="edit_description")
+    ]
 
-    # Delete button tabhi jab custom description ho
     if desc != DEFAULT_DESCRIPTION:
         buttons.append(
             InlineKeyboardButton("❌ Delete Description", callback_data="delete_description")
