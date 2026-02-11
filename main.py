@@ -42,8 +42,6 @@ def main():
         .post_init(on_startup)
         .build()
     )
-    app.bot_data["users_collection"] = users
-    app.bot_data["schedules_collection"] = schedules
     app.add_handler(get_set_description_handler())
     # 🔹 REGISTER PLUGINS
     register_start_handlers(app)
