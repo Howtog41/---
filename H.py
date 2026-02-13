@@ -5,11 +5,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = "7105638751:AAEU3vLn1FJcj3QerELdiia9Ald2AqUSDec"
-CHAT_ID = -1001911273978   # 🔴 apna channel/group id
+CHAT_ID = -1001911273978   
 
-# ===============================
-# TXT File Receive Handler
-# ===============================
 async def handle_txt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     file = await update.message.document.get_file()
@@ -17,73 +14,79 @@ async def handle_txt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Processing started...")
 
-    with open("links.txt", "r") as f:
-        links = f.readlines()
+    with open("links.txt", "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
-    for link in links:
-        link = link.strip()
-        if not link:
+    for line in lines:
+        line = line.strip()
+        if not line:
             continue
 
         try:
-            # ================= PDF =================
-            if link.endswith(".pdf"):
+            # Title + URL split
+            if ":" in line and line.count("http") == 1:
+                title, link = line.split(":", 1)
+                title = title.strip()
+                link = link.strip()
+            else:
+                title = "File"
+                link = line
 
-                await update.message.reply_text(f"Downloading PDF...")
+            # ================= PDF =================
+            if ".pdf" in link:
+
+                filename = title.replace(" ", "_") + ".pdf"
 
                 response = requests.get(link)
-                filename = link.split("/")[-1].split("?")[0]
-
-                with open(filename, "wb") as pdf:
-                    pdf.write(response.content)
+                with open(filename, "wb") as f:
+                    f.write(response.content)
 
                 with open(filename, "rb") as pdf:
                     await context.bot.send_document(
                         chat_id=CHAT_ID,
                         document=pdf,
-                        caption=f"📘 {filename}"
+                        caption=f"📘 {title}"
                     )
 
                 os.remove(filename)
 
             # ================= M3U8 =================
-            elif link.endswith(".m3u8"):
+            elif ".m3u8" in link:
 
-                await update.message.reply_text("Downloading M3U8 video...")
-
-                filename = link.split("/")[-1].split(".")[0] + ".mp4"
+                filename = title.replace(" ", "_") + ".mp4"
 
                 cmd = [
                     "ffmpeg",
+                    "-y",
                     "-protocol_whitelist", "file,http,https,tcp,tls",
                     "-i", link,
                     "-c", "copy",
                     filename
                 ]
 
-                subprocess.run(cmd)
+                process = subprocess.run(cmd)
 
-                with open(filename, "rb") as video:
-                    await context.bot.send_video(
-                        chat_id=CHAT_ID,
-                        video=video,
-                        caption=f"🎬 {filename}"
-                    )
+                if os.path.exists(filename):
+                    with open(filename, "rb") as video:
+                        await context.bot.send_video(
+                            chat_id=CHAT_ID,
+                            video=video,
+                            caption=f"🎬 {title}"
+                        )
 
-                os.remove(filename)
+                    os.remove(filename)
+                else:
+                    await update.message.reply_text(f"FFmpeg failed:\n{title}")
 
         except Exception as e:
-            await update.message.reply_text(f"Error with link:\n{link}\n{e}")
+            await update.message.reply_text(f"Error:\n{line}\n{e}")
 
     await update.message.reply_text("All files processed ✅")
 
 
-# ===============================
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(MessageHandler(filters.Document.FileExtension("txt"), handle_txt))
-
     print("Bot running...")
     app.run_polling()
 
