@@ -1,121 +1,76 @@
+import nest_asyncio
+nest_asyncio.apply()
+
 import os
-import requests
-import subprocess
+import fitz
+import easyocr
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 BOT_TOKEN = "7105638751:AAEU3vLn1FJcj3QerELdiia9Ald2AqUSDec"
-CHAT_ID = -1001911273978   
 
-executor = ThreadPoolExecutor(max_workers=3)
+# Initialize OCR once
+reader = easyocr.Reader(['en', 'hi'], gpu=False)
 
-# ================= FAST PDF =================
-def download_pdf(title, link):
-    filename = title.replace(" ", "_") + ".pdf"
 
-    response = requests.get(link, stream=True)
-    with open(filename, "wb") as f:
-        for chunk in response.iter_content(chunk_size=1024*1024):
-            if chunk:
-                f.write(chunk)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📄 Send PDF file for OCR extraction.")
 
-    return filename
 
-# ================= FAST M3U8 =================
-def download_m3u8(title, link):
-    filename = title.replace(" ", "_") + ".mp4"
-
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-threads", "8",
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "5",
-        "-protocol_whitelist", "file,http,https,tcp,tls",
-        "-i", link,
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        filename
-    ]
-
-    subprocess.run(cmd)
-
-    if os.path.exists(filename):
-        return filename
-    return None
-
-# ================= MAIN HANDLER =================
-async def handle_txt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⬇ Downloading PDF...")
 
     file = await update.message.document.get_file()
-    await file.download_to_drive("links.txt")
+    pdf_path = "input.pdf"
+    await file.download_to_drive(pdf_path)
 
-    await update.message.reply_text("⚡ Fast Processing Started...")
+    await update.message.reply_text("⏳ Processing PDF... Please wait.")
 
-    with open("links.txt", "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    doc = fitz.open(pdf_path)
+    total_pages = len(doc)
 
-    loop = asyncio.get_event_loop()
+    final_text = ""
 
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
+    for page_num in range(total_pages):
+        page = doc.load_page(page_num)
 
-        if ":" in line and line.count("http") == 1:
-            title, link = line.split(":", 1)
-            title = title.strip()
-            link = link.strip()
-        else:
-            title = "File"
-            link = line
+        # High resolution image for better OCR
+        pix = page.get_pixmap(dpi=300)
+        img_bytes = pix.tobytes("png")
 
-        try:
-            if ".pdf" in link:
+        result = reader.readtext(img_bytes)
 
-                filename = await loop.run_in_executor(
-                    executor, download_pdf, title, link
-                )
+        final_text += f"\n\n========== Page {page_num+1} ==========\n\n"
 
-                with open(filename, "rb") as pdf:
-                    await context.bot.send_document(
-                        chat_id=CHAT_ID,
-                        document=pdf,
-                        caption=f"📘 {title}"
-                    )
+        for r in result:
+            final_text += r[1] + "\n"
 
-                os.remove(filename)
+        # Progress message every page
+        await update.message.reply_text(f"✅ Page {page_num+1}/{total_pages} done")
 
-            elif ".m3u8" in link:
+    output_file = "output.txt"
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(final_text)
 
-                filename = await loop.run_in_executor(
-                    executor, download_m3u8, title, link
-                )
+    await update.message.reply_document(document=open(output_file, "rb"))
 
-                if filename:
-                    with open(filename, "rb") as video:
-                        await context.bot.send_video(
-                            chat_id=CHAT_ID,
-                            video=video,
-                            caption=f"🎬 {title}"
-                        )
+    os.remove(pdf_path)
+    os.remove(output_file)
 
-                    os.remove(filename)
-
-        except Exception as e:
-            await update.message.reply_text(f"Error:\n{title}\n{e}")
-
-    await update.message.reply_text("✅ All files processed!")
+    await update.message.reply_text("🎉 OCR Completed Successfully!")
 
 
-def main():
+async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.Document.FileExtension("txt"), handle_txt))
-    print("Bot running...")
-    app.run_polling()
 
-if __name__ == "__main__":
-    main()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
+
+    print("🤖 Bot Running... Send PDF in Telegram.")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+
+
+asyncio.get_event_loop().run_until_complete(main())
