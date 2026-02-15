@@ -1,14 +1,5 @@
-pyTelegramBotAPI==4.11.0
-pymongo
-python-dotenv
 python-telegram-bot==20.7
-FPDF
-reportlab
-pandas
-apscheduler
-pytz
-easyocr
-PyPDF2
-pillow
-paddlepaddle
 paddleocr==2.7.0.3
+paddlepaddle
+pymupdf
+Pillow
