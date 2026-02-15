@@ -1,64 +1,68 @@
 import os
-import easyocr
-import pypdfium2 as pdfium
+import tempfile
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from paddleocr import PaddleOCR
+import pypdfium2 as pdfium
+from PIL import Image
 
 BOT_TOKEN = "7105638751:AAEU3vLn1FJcj3QerELdiia9Ald2AqUSDec"
 
-# Initialize OCR (English only)
-reader = easyocr.Reader(['en'])  
-# Hindi + English ke liye:
-# reader = easyocr.Reader(['en','hi'])
+# Initialize OCR (Hindi + English)
+ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Change to 'hi' for Hindi
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📄 Send me a PDF file.\nI will convert it to OCR TXT."
+        "📄 Send me a PDF file.\n"
+        "I will convert it to TXT using OCR.\n"
+        "Supports multiple languages."
     )
 
-async def pdf_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.document.get_file()
-    pdf_path = "input.pdf"
-    await file.download_to_drive(pdf_path)
+async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
 
-    await update.message.reply_text("⏳ Processing OCR...")
+    if not document.file_name.lower().endswith(".pdf"):
+        await update.message.reply_text("❌ Please send a valid PDF file.")
+        return
 
-    # Convert PDF to images (No poppler needed)
-    pdf = pdfium.PdfDocument(pdf_path)
-    page_indices = list(range(len(pdf)))
-    renderer = pdf.render_to(
-        pdfium.BitmapConv.pil_image,
-        page_indices=page_indices,
-        scale=2
-    )
+    await update.message.reply_text("⏳ Processing PDF... Please wait.")
 
-    full_text = ""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pdf_path = os.path.join(temp_dir, "input.pdf")
+        txt_path = os.path.join(temp_dir, "output.txt")
 
-    for i, image in zip(page_indices, renderer):
-        img_path = f"page_{i}.png"
-        image.save(img_path)
+        file = await document.get_file()
+        await file.download_to_drive(pdf_path)
 
-        result = reader.readtext(img_path, detail=0)
-        full_text += "\n".join(result) + "\n\n"
+        # Convert PDF to images
+        pdf = pdfium.PdfDocument(pdf_path)
+        text_output = ""
 
-        os.remove(img_path)
+        for i in range(len(pdf)):
+            page = pdf[i]
+            bitmap = page.render(scale=2).to_pil()
+            image_path = os.path.join(temp_dir, f"page_{i}.jpg")
+            bitmap.save(image_path)
 
-    txt_path = "output.txt"
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(full_text)
+            # OCR on image
+            result = ocr.ocr(image_path)
+            for line in result[0]:
+                text_output += line[1][0] + "\n"
 
-    await update.message.reply_document(open(txt_path, "rb"))
+        # Save text file
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(text_output)
 
-    os.remove(pdf_path)
-    os.remove(txt_path)
+        await update.message.reply_document(document=open(txt_path, "rb"))
+
+    await update.message.reply_text("✅ Conversion Complete!")
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.PDF, pdf_handler))
+    app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
 
-    print("Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
