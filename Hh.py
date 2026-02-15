@@ -1,53 +1,45 @@
 import os
+import easyocr
 import pypdfium2 as pdfium
-from paddleocr import PaddleOCR
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = "7105638751:AAEU3vLn1FJcj3QerELdiia9Ald2AqUSDec"
-MAX_PAGES = 30
 
-os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+# Initialize OCR (English only)
+reader = easyocr.Reader(['en'])  
+# Hindi + English ke liye:
+# reader = easyocr.Reader(['en','hi'])
 
-ocr = PaddleOCR(
-    use_angle_cls=True,
-    lang='en',
-    show_log=False
-)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📄 Send me a PDF file.\nI will convert it to OCR TXT."
+    )
 
-async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("📄 Processing PDF... ⏳")
-
+async def pdf_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     pdf_path = "input.pdf"
     await file.download_to_drive(pdf_path)
 
-    pdf = pdfium.PdfDocument(pdf_path)
+    await update.message.reply_text("⏳ Processing OCR...")
 
-    if len(pdf) > MAX_PAGES:
-        await msg.edit_text("❌ Max 30 pages allowed.")
-        os.remove(pdf_path)
-        return
+    # Convert PDF to images (No poppler needed)
+    pdf = pdfium.PdfDocument(pdf_path)
+    page_indices = list(range(len(pdf)))
+    renderer = pdf.render_to(
+        pdfium.BitmapConv.pil_image,
+        page_indices=page_indices,
+        scale=2
+    )
 
     full_text = ""
 
-    for i in range(len(pdf)):
-        page = pdf[i]
-        bitmap = page.render(scale=2)  # 2 = ~200 DPI
-        pil_image = bitmap.to_pil()
-
+    for i, image in zip(page_indices, renderer):
         img_path = f"page_{i}.png"
-        pil_image.save(img_path)
+        image.save(img_path)
 
-        result = ocr.ocr(img_path)
-
-        page_text = ""
-        if result and result[0]:
-            for line in result[0]:
-                page_text += line[1][0] + "\n"
-
-        full_text += f"\n\n===== Page {i+1} =====\n\n"
-        full_text += page_text
+        result = reader.readtext(img_path, detail=0)
+        full_text += "\n".join(result) + "\n\n"
 
         os.remove(img_path)
 
@@ -55,17 +47,18 @@ async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(full_text)
 
-    await update.message.reply_document(document=open(txt_path, "rb"))
+    await update.message.reply_document(open(txt_path, "rb"))
 
-    await msg.delete()
     os.remove(pdf_path)
     os.remove(txt_path)
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
 
-    print("🚀 OCR Bot Running...")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Document.PDF, pdf_handler))
+
+    print("Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
