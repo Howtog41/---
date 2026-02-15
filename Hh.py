@@ -1,69 +1,82 @@
 import os
-import tempfile
+import pytesseract
+from pdf2image import convert_from_path
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from paddleocr import PaddleOCR
-import pypdfium2 as pdfium
-from PIL import Image
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
+# 🔐 Yaha apna Bot Token dalo
 BOT_TOKEN = "7105638751:AAEU3vLn1FJcj3QerELdiia9Ald2AqUSDec"
 
-# Initialize OCR (Hindi + English)
-ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Change to 'hi' for Hindi
+DOWNLOAD_DIR = "downloads"
+OUTPUT_DIR = "outputs"
+
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📄 Send me a PDF file.\n"
-        "I will convert it to TXT using OCR.\n"
-        "Supports multiple languages."
+        "👋 Hello!\n\n"
+        "📄 Mujhe koi bhi PDF bhejo.\n"
+        "Main use OCR karke TXT file bana dunga.\n\n"
+        "✅ Hindi + English Supported"
     )
 
-async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    document = update.message.document
 
-    if not document.file_name.lower().endswith(".pdf"):
-        await update.message.reply_text("❌ Please send a valid PDF file.")
+async def pdf_to_txt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.document:
         return
 
-    await update.message.reply_text("⏳ Processing PDF... Please wait.")
+    doc = update.message.document
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pdf_path = os.path.join(temp_dir, "input.pdf")
-        txt_path = os.path.join(temp_dir, "output.txt")
+    if not doc.file_name.lower().endswith(".pdf"):
+        await update.message.reply_text("❌ Sirf PDF file bheje.")
+        return
 
-        file = await document.get_file()
-        await file.download_to_drive(pdf_path)
+    await update.message.reply_text("📥 PDF receive ho gaya...\n⏳ OCR process start ho raha hai...")
 
-        # Convert PDF to images
-        pdf = pdfium.PdfDocument(pdf_path)
-        text_output = ""
+    file = await doc.get_file()
+    pdf_path = os.path.join(DOWNLOAD_DIR, doc.file_name)
+    await file.download_to_drive(pdf_path)
 
-        for i in range(len(pdf)):
-            page = pdf[i]
-            bitmap = page.render(scale=2).to_pil()
-            image_path = os.path.join(temp_dir, f"page_{i}.jpg")
-            bitmap.save(image_path)
+    try:
+        images = convert_from_path(pdf_path, dpi=300)
+        full_text = ""
 
-            # OCR on image
-            result = ocr.ocr(image_path)
-            for line in result[0]:
-                text_output += line[1][0] + "\n"
+        for i, img in enumerate(images):
+            text = pytesseract.image_to_string(img, lang='eng+hin')
+            full_text += f"\n\n--- Page {i+1} ---\n\n{text}"
 
-        # Save text file
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(text_output)
+        output_txt_path = os.path.join(
+            OUTPUT_DIR, doc.file_name.replace(".pdf", ".txt")
+        )
 
-        await update.message.reply_document(document=open(txt_path, "rb"))
+        with open(output_txt_path, "w", encoding="utf-8") as f:
+            f.write(full_text)
 
-    await update.message.reply_text("✅ Conversion Complete!")
+        await update.message.reply_document(
+            document=open(output_txt_path, "rb")
+        )
+
+        await update.message.reply_text("✅ OCR Complete!")
+
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Error: {str(e)}")
+
+    finally:
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
+    app.add_handler(MessageHandler(filters.Document.PDF, pdf_to_txt))
+    app.add_handler(MessageHandler(filters.COMMAND, start))
 
+    print("🤖 Bot Running...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
