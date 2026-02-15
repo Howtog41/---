@@ -8,7 +8,6 @@ pandas
 apscheduler
 pytz
 easyocr
-pymupdf
 PyPDF2
 pillow
 paddlepaddle
