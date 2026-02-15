@@ -11,3 +11,5 @@ easyocr
 pymupdf
 PyPDF2
 pillow
+paddlepaddle
+paddleocr
