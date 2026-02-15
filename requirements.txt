@@ -1,5 +1,4 @@
 python-telegram-bot==20.7
-paddleocr==2.7.0.3
-paddlepaddle==2.6.1
-pypdfium2
-Pillow
+PyPDF2 
+g4f 
+pandas 
