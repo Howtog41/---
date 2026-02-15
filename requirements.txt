@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
 paddleocr==2.7.0.3
 paddlepaddle
-pymupdf
+pymupdf==1.23.8
 Pillow
